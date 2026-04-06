@@ -65,9 +65,12 @@ typedef struct
 typedef struct
 {
   TypeCase plateau[TAILLE_PLATEAU][TAILLE_PLATEAU];
+  uint8_t piecesCaptureesEnCours[TAILLE_PLATEAU][TAILLE_PLATEAU];
   TypeJoueur joueurCourant;
+  TypeJoueur gagnant;
   uint8_t selectionActive;
   uint8_t priseMultipleActive;
+  uint8_t partieTerminee;
   PositionCase caseSelectionnee;
 } EtatPartie;
 
@@ -112,11 +115,13 @@ void SystemClock_Config(void);
 static void InitialiserPlateau(EtatPartie *etat);
 static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
+static void ReinitialiserCapturesEnCours(EtatPartie *etat);
 static uint8_t CoordonneesSontDansPlateau(int32_t ligne, int32_t colonne);
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t CaseEstVide(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
+static uint8_t CaseEstDejaCaptureeEnCours(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee);
 static uint8_t DeplacementSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
 static uint8_t DeplacementSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
@@ -130,10 +135,16 @@ static uint8_t PriseRespecteLeMaximum(const EtatPartie *etat, PositionCase depar
 static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depart);
 static uint8_t JoueurDoitCapturer(const EtatPartie *etat);
 static uint8_t PiecePeutEtreSelectionnee(const EtatPartie *etat, PositionCase caseTouchee);
+static uint8_t PiecePeutSeDeplacerDepuis(const EtatPartie *etat, PositionCase depart);
+static uint8_t JoueurPeutJouer(const EtatPartie *etat, TypeJoueur joueur);
+static void EvaluerFinPartie(EtatPartie *etat);
 static void ChangerJoueurCourant(EtatPartie *etat);
 static void PromouvoirPionSiNecessaire(EtatPartie *etat, PositionCase arrivee);
 static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase arrivee);
 static void EffectuerPriseSimple(EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase caseCapturee);
+static void RetirerPiecesCaptureesEnCours(EtatPartie *etat);
+static void FinaliserTourSansCapture(EtatPartie *etat, PositionCase arrivee);
+static void FinaliserTourApresCapture(EtatPartie *etat, PositionCase arrivee);
 static void DeselectionnerCase(EtatPartie *etat);
 static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static void DessinerPlateau(void);
@@ -195,12 +206,29 @@ static void InitialiserPartie(EtatPartie *etat)
 {
   InitialiserPlateau(etat);
   PlacerPionsInitiaux(etat);
+  ReinitialiserCapturesEnCours(etat);
 
   etat->joueurCourant = JOUEUR_BLANC;
+  etat->gagnant = JOUEUR_BLANC;
   etat->selectionActive = 0U;
   etat->priseMultipleActive = 0U;
+  etat->partieTerminee = 0U;
   etat->caseSelectionnee.ligne = 0U;
   etat->caseSelectionnee.colonne = 0U;
+}
+
+static void ReinitialiserCapturesEnCours(EtatPartie *etat)
+{
+  uint32_t ligne;
+  uint32_t colonne;
+
+  for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      etat->piecesCaptureesEnCours[ligne][colonne] = 0U;
+    }
+  }
 }
 
 static uint8_t CoordonneesSontDansPlateau(int32_t ligne, int32_t colonne)
@@ -230,6 +258,11 @@ static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, u
 {
   TypeCase typeCase = etat->plateau[ligne][colonne];
 
+  if (CaseEstDejaCaptureeEnCours(etat, ligne, colonne) != 0U)
+  {
+    return 0U;
+  }
+
   if (etat->joueurCourant == JOUEUR_BLANC)
   {
     return (uint8_t)((typeCase == PION_NOIR) || (typeCase == DAME_NOIRE));
@@ -241,6 +274,11 @@ static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, u
 static uint8_t CaseEstVide(const EtatPartie *etat, uint8_t ligne, uint8_t colonne)
 {
   return (uint8_t)(etat->plateau[ligne][colonne] == CASE_VIDE);
+}
+
+static uint8_t CaseEstDejaCaptureeEnCours(const EtatPartie *etat, uint8_t ligne, uint8_t colonne)
+{
+  return etat->piecesCaptureesEnCours[ligne][colonne];
 }
 
 static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee)
@@ -400,6 +438,11 @@ static uint8_t PriseSimpleDameEstValide(const EtatPartie *etat, PositionCase dep
   {
     if (etat->plateau[ligneCourante][colonneCourante] != CASE_VIDE)
     {
+      if (CaseEstDejaCaptureeEnCours(etat, (uint8_t)ligneCourante, (uint8_t)colonneCourante) != 0U)
+      {
+        return 0U;
+      }
+
       if (CaseContientPieceAdverse(etat, (uint8_t)ligneCourante, (uint8_t)colonneCourante) == 0U)
       {
         return 0U;
@@ -632,6 +675,116 @@ static uint8_t PiecePeutEtreSelectionnee(const EtatPartie *etat, PositionCase ca
   return (uint8_t)(CalculerMaxPrisesDepuis(etat, caseTouchee) == maximumJoueur);
 }
 
+static uint8_t PiecePeutSeDeplacerDepuis(const EtatPartie *etat, PositionCase depart)
+{
+  TypeCase typeCase = etat->plateau[depart.ligne][depart.colonne];
+
+  if ((typeCase == PION_BLANC) || (typeCase == PION_NOIR))
+  {
+    int32_t directionLigne = (typeCase == PION_BLANC) ? 1 : -1;
+    int32_t colonneCible;
+    int32_t ligneCible;
+
+    ligneCible = (int32_t)depart.ligne + directionLigne;
+    if (CoordonneesSontDansPlateau(ligneCible, (int32_t)depart.colonne - 1) != 0U)
+    {
+      colonneCible = (int32_t)depart.colonne - 1;
+      if (CaseEstVide(etat, (uint8_t)ligneCible, (uint8_t)colonneCible) != 0U)
+      {
+        return 1U;
+      }
+    }
+
+    if (CoordonneesSontDansPlateau(ligneCible, (int32_t)depart.colonne + 1) != 0U)
+    {
+      colonneCible = (int32_t)depart.colonne + 1;
+      if (CaseEstVide(etat, (uint8_t)ligneCible, (uint8_t)colonneCible) != 0U)
+      {
+        return 1U;
+      }
+    }
+
+    return 0U;
+  }
+
+  if ((typeCase == DAME_BLANCHE) || (typeCase == DAME_NOIRE))
+  {
+    int32_t directions[4][2] = {
+      {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+    };
+    uint32_t indexDirection;
+
+    for (indexDirection = 0; indexDirection < 4U; indexDirection++)
+    {
+      int32_t ligneCourante = (int32_t)depart.ligne + directions[indexDirection][0];
+      int32_t colonneCourante = (int32_t)depart.colonne + directions[indexDirection][1];
+
+      while (CoordonneesSontDansPlateau(ligneCourante, colonneCourante) != 0U)
+      {
+        if (etat->plateau[ligneCourante][colonneCourante] != CASE_VIDE)
+        {
+          break;
+        }
+
+        return 1U;
+      }
+    }
+  }
+
+  return 0U;
+}
+
+static uint8_t JoueurPeutJouer(const EtatPartie *etat, TypeJoueur joueur)
+{
+  EtatPartie copieEtat;
+  uint32_t ligne;
+  uint32_t colonne;
+
+  copieEtat = *etat;
+  copieEtat.joueurCourant = joueur;
+  ReinitialiserCapturesEnCours(&copieEtat);
+
+  if (JoueurDoitCapturer(&copieEtat) != 0U)
+  {
+    return 1U;
+  }
+
+  for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      PositionCase position;
+
+      if (CaseContientPieceDuJoueur(&copieEtat, (uint8_t)ligne, (uint8_t)colonne) == 0U)
+      {
+        continue;
+      }
+
+      position.ligne = (uint8_t)ligne;
+      position.colonne = (uint8_t)colonne;
+
+      if (PiecePeutSeDeplacerDepuis(&copieEtat, position) != 0U)
+      {
+        return 1U;
+      }
+    }
+  }
+
+  return 0U;
+}
+
+static void EvaluerFinPartie(EtatPartie *etat)
+{
+  if (JoueurPeutJouer(etat, etat->joueurCourant) != 0U)
+  {
+    etat->partieTerminee = 0U;
+    return;
+  }
+
+  etat->partieTerminee = 1U;
+  etat->gagnant = (etat->joueurCourant == JOUEUR_BLANC) ? JOUEUR_NOIR : JOUEUR_BLANC;
+}
+
 static void ChangerJoueurCourant(EtatPartie *etat)
 {
   etat->joueurCourant = (etat->joueurCourant == JOUEUR_BLANC) ? JOUEUR_NOIR : JOUEUR_BLANC;
@@ -660,7 +813,43 @@ static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase ar
 static void EffectuerPriseSimple(EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase caseCapturee)
 {
   DeplacerPiece(etat, depart, arrivee);
-  etat->plateau[caseCapturee.ligne][caseCapturee.colonne] = CASE_VIDE;
+  etat->piecesCaptureesEnCours[caseCapturee.ligne][caseCapturee.colonne] = 1U;
+}
+
+static void RetirerPiecesCaptureesEnCours(EtatPartie *etat)
+{
+  uint32_t ligne;
+  uint32_t colonne;
+
+  for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      if (etat->piecesCaptureesEnCours[ligne][colonne] != 0U)
+      {
+        etat->plateau[ligne][colonne] = CASE_VIDE;
+      }
+    }
+  }
+}
+
+static void FinaliserTourApresCapture(EtatPartie *etat, PositionCase arrivee)
+{
+  RetirerPiecesCaptureesEnCours(etat);
+  PromouvoirPionSiNecessaire(etat, arrivee);
+  DeselectionnerCase(etat);
+  ChangerJoueurCourant(etat);
+  ReinitialiserCapturesEnCours(etat);
+  EvaluerFinPartie(etat);
+}
+
+static void FinaliserTourSansCapture(EtatPartie *etat, PositionCase arrivee)
+{
+  PromouvoirPionSiNecessaire(etat, arrivee);
+  DeselectionnerCase(etat);
+  ChangerJoueurCourant(etat);
+  ReinitialiserCapturesEnCours(etat);
+  EvaluerFinPartie(etat);
 }
 
 static void DeselectionnerCase(EtatPartie *etat)
@@ -809,7 +998,15 @@ static void DessinerInfosJeu(const EtatPartie *etat)
   BSP_LCD_SetTextColor(COULEUR_INFOS_JEU);
   BSP_LCD_SetBackColor(0x00000000);
 
-  snprintf(texte, sizeof(texte), "Tour : %s", etat->joueurCourant == JOUEUR_BLANC ? "blanc" : "noir");
+  if (etat->partieTerminee != 0U)
+  {
+    snprintf(texte, sizeof(texte), "Victoire : %s", etat->gagnant == JOUEUR_BLANC ? "blanc" : "noir");
+  }
+  else
+  {
+    snprintf(texte, sizeof(texte), "Tour : %s", etat->joueurCourant == JOUEUR_BLANC ? "blanc" : "noir");
+  }
+
   BSP_LCD_DisplayStringAt(280, 24, (uint8_t *)texte, LEFT_MODE);
 }
 
@@ -899,7 +1096,8 @@ int main(void)
   {
     BSP_TS_GetState(&etatTactile);
 
-    if ((etatTactile.touchDetected != 0U) && (tactileActifPrecedent == 0U))
+    if ((etatPartie.partieTerminee == 0U) &&
+        (etatTactile.touchDetected != 0U) && (tactileActifPrecedent == 0U))
     {
       priseObligatoire = JoueurDoitCapturer(&etatPartie);
 
@@ -929,9 +1127,7 @@ int main(void)
               }
               else
               {
-                PromouvoirPionSiNecessaire(&etatPartie, caseTouchee);
-                DeselectionnerCase(&etatPartie);
-                ChangerJoueurCourant(&etatPartie);
+                FinaliserTourApresCapture(&etatPartie, caseTouchee);
               }
             }
           }
@@ -955,18 +1151,14 @@ int main(void)
             }
             else
             {
-              PromouvoirPionSiNecessaire(&etatPartie, caseTouchee);
-              DeselectionnerCase(&etatPartie);
-              ChangerJoueurCourant(&etatPartie);
+              FinaliserTourApresCapture(&etatPartie, caseTouchee);
             }
           }
           else if ((priseObligatoire == 0U) &&
                    (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U))
           {
             DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
-            PromouvoirPionSiNecessaire(&etatPartie, caseTouchee);
-            DeselectionnerCase(&etatPartie);
-            ChangerJoueurCourant(&etatPartie);
+            FinaliserTourSansCapture(&etatPartie, caseTouchee);
           }
         }
       }
