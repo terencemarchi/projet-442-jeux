@@ -38,12 +38,41 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+#define TAILLE_PLATEAU             10U
+
+typedef enum
+{
+  CASE_VIDE = 0,
+  PION_BLANC,
+  PION_NOIR,
+  DAME_BLANCHE,
+  DAME_NOIRE
+} TypeCase;
+
+typedef enum
+{
+  JOUEUR_BLANC = 0,
+  JOUEUR_NOIR
+} TypeJoueur;
+
+typedef struct
+{
+  uint8_t ligne;
+  uint8_t colonne;
+} PositionCase;
+
+typedef struct
+{
+  TypeCase plateau[TAILLE_PLATEAU][TAILLE_PLATEAU];
+  TypeJoueur joueurCourant;
+  uint8_t selectionActive;
+  PositionCase caseSelectionnee;
+} EtatPartie;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TAILLE_PLATEAU             10U
 #define TAILLE_CASE                24U
 #define PLATEAU_X                  16U
 #define PLATEAU_Y                  16U
@@ -69,20 +98,77 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static EtatPartie etatPartie;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+static void InitialiserPlateau(EtatPartie *etat);
+static void PlacerPionsInitiaux(EtatPartie *etat);
+static void InitialiserPartie(EtatPartie *etat);
 static void DessinerPlateau(void);
 static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uint16_t *y);
 static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour);
-static void DessinerPionsInitials(void);
+static void DessinerPions(const EtatPartie *etat);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void InitialiserPlateau(EtatPartie *etat)
+{
+  uint32_t ligne;
+  uint32_t colonne;
+
+  for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      etat->plateau[ligne][colonne] = CASE_VIDE;
+    }
+  }
+}
+
+static void PlacerPionsInitiaux(EtatPartie *etat)
+{
+  uint32_t ligne;
+  uint32_t colonne;
+
+  for (ligne = 0; ligne < NB_LIGNES_PIONS; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      if (((ligne + colonne) % 2U) != 0U)
+      {
+        etat->plateau[ligne][colonne] = PION_BLANC;
+      }
+    }
+  }
+
+  for (ligne = TAILLE_PLATEAU - NB_LIGNES_PIONS; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      if (((ligne + colonne) % 2U) != 0U)
+      {
+        etat->plateau[ligne][colonne] = PION_NOIR;
+      }
+    }
+  }
+}
+
+static void InitialiserPartie(EtatPartie *etat)
+{
+  InitialiserPlateau(etat);
+  PlacerPionsInitiaux(etat);
+
+  etat->joueurCourant = JOUEUR_BLANC;
+  etat->selectionActive = 0U;
+  etat->caseSelectionnee.ligne = 0U;
+  etat->caseSelectionnee.colonne = 0U;
+}
+
 static void DessinerPlateau(void)
 {
   uint32_t ligne;
@@ -131,7 +217,7 @@ static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRempl
   BSP_LCD_DrawCircle(centreX, centreY, RAYON_PION);
 }
 
-static void DessinerPionsInitials(void)
+static void DessinerPions(const EtatPartie *etat)
 {
   uint32_t ligne;
   uint32_t colonne;
@@ -139,24 +225,31 @@ static void DessinerPionsInitials(void)
   BSP_LCD_SelectLayer(1);
   BSP_LCD_Clear(0x00000000);
 
-  for (ligne = 0; ligne < NB_LIGNES_PIONS; ligne++)
+  for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
   {
     for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
     {
-      if (((ligne + colonne) % 2U) != 0U)
+      switch (etat->plateau[ligne][colonne])
       {
-        DessinerPion(ligne, colonne, COULEUR_PION_BLANC, COULEUR_CONTOUR_PION_BLANC);
-      }
-    }
-  }
+        case PION_BLANC:
+          DessinerPion(ligne, colonne, COULEUR_PION_BLANC, COULEUR_CONTOUR_PION_BLANC);
+          break;
 
-  for (ligne = TAILLE_PLATEAU - NB_LIGNES_PIONS; ligne < TAILLE_PLATEAU; ligne++)
-  {
-    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
-    {
-      if (((ligne + colonne) % 2U) != 0U)
-      {
-        DessinerPion(ligne, colonne, COULEUR_PION_NOIR, COULEUR_CONTOUR_PION_NOIR);
+        case PION_NOIR:
+          DessinerPion(ligne, colonne, COULEUR_PION_NOIR, COULEUR_CONTOUR_PION_NOIR);
+          break;
+
+        case DAME_BLANCHE:
+          DessinerPion(ligne, colonne, COULEUR_PION_BLANC, COULEUR_CONTOUR_PION_BLANC);
+          break;
+
+        case DAME_NOIRE:
+          DessinerPion(ligne, colonne, COULEUR_PION_NOIR, COULEUR_CONTOUR_PION_NOIR);
+          break;
+
+        case CASE_VIDE:
+        default:
+          break;
       }
     }
   }
@@ -211,12 +304,13 @@ int main(void)
   MX_DAC_Init();
   MX_UART7_Init();
   /* USER CODE BEGIN 2 */
+  InitialiserPartie(&etatPartie);
   BSP_LCD_Init();
   BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
   BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS+ BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4);
   BSP_LCD_DisplayOn();
   DessinerPlateau();
-  DessinerPionsInitials();
+  DessinerPions(&etatPartie);
   BSP_LCD_SelectLayer(1);
   BSP_LCD_SetFont(&Font12);
   BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
