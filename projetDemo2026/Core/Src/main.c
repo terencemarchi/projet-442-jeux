@@ -67,6 +67,7 @@ typedef struct
   TypeCase plateau[TAILLE_PLATEAU][TAILLE_PLATEAU];
   TypeJoueur joueurCourant;
   uint8_t selectionActive;
+  uint8_t priseMultipleActive;
   PositionCase caseSelectionnee;
 } EtatPartie;
 
@@ -111,6 +112,7 @@ void SystemClock_Config(void);
 static void InitialiserPlateau(EtatPartie *etat);
 static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
+static uint8_t CoordonneesSontDansPlateau(int32_t ligne, int32_t colonne);
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
@@ -122,6 +124,7 @@ static uint8_t DeplacementSimpleEstValide(const EtatPartie *etat, PositionCase d
 static uint8_t PriseSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static uint8_t PriseSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static uint8_t PriseSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
+static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depart);
 static void ChangerJoueurCourant(EtatPartie *etat);
 static void PromouvoirPionSiNecessaire(EtatPartie *etat, PositionCase arrivee);
 static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase arrivee);
@@ -190,8 +193,15 @@ static void InitialiserPartie(EtatPartie *etat)
 
   etat->joueurCourant = JOUEUR_BLANC;
   etat->selectionActive = 0U;
+  etat->priseMultipleActive = 0U;
   etat->caseSelectionnee.ligne = 0U;
   etat->caseSelectionnee.colonne = 0U;
+}
+
+static uint8_t CoordonneesSontDansPlateau(int32_t ligne, int32_t colonne)
+{
+  return (uint8_t)((ligne >= 0) && (ligne < (int32_t)TAILLE_PLATEAU) &&
+                   (colonne >= 0) && (colonne < (int32_t)TAILLE_PLATEAU));
 }
 
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne)
@@ -424,6 +434,84 @@ static uint8_t PriseSimpleEstValide(const EtatPartie *etat, PositionCase depart,
   return 0U;
 }
 
+static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depart)
+{
+  TypeCase typeCase = etat->plateau[depart.ligne][depart.colonne];
+  int32_t directions[4][2] = {
+    {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+  };
+  uint32_t indexDirection;
+
+  if ((typeCase == PION_BLANC) || (typeCase == PION_NOIR))
+  {
+    int32_t ligneAdverse;
+    int32_t colonneAdverse;
+    int32_t ligneArrivee;
+    int32_t colonneArrivee;
+
+    for (indexDirection = 0; indexDirection < 4U; indexDirection++)
+    {
+      ligneAdverse = (int32_t)depart.ligne + directions[indexDirection][0];
+      colonneAdverse = (int32_t)depart.colonne + directions[indexDirection][1];
+      ligneArrivee = (int32_t)depart.ligne + (2 * directions[indexDirection][0]);
+      colonneArrivee = (int32_t)depart.colonne + (2 * directions[indexDirection][1]);
+
+      if ((CoordonneesSontDansPlateau(ligneAdverse, colonneAdverse) != 0U) &&
+          (CoordonneesSontDansPlateau(ligneArrivee, colonneArrivee) != 0U) &&
+          (CaseContientPieceAdverse(etat, (uint8_t)ligneAdverse, (uint8_t)colonneAdverse) != 0U) &&
+          (CaseEstVide(etat, (uint8_t)ligneArrivee, (uint8_t)colonneArrivee) != 0U))
+      {
+        return 1U;
+      }
+    }
+
+    return 0U;
+  }
+
+  if ((typeCase == DAME_BLANCHE) || (typeCase == DAME_NOIRE))
+  {
+    int32_t ligneCourante;
+    int32_t colonneCourante;
+    uint8_t pieceAdverseTrouvee;
+
+    for (indexDirection = 0; indexDirection < 4U; indexDirection++)
+    {
+      ligneCourante = (int32_t)depart.ligne + directions[indexDirection][0];
+      colonneCourante = (int32_t)depart.colonne + directions[indexDirection][1];
+      pieceAdverseTrouvee = 0U;
+
+      while (CoordonneesSontDansPlateau(ligneCourante, colonneCourante) != 0U)
+      {
+        if (etat->plateau[ligneCourante][colonneCourante] == CASE_VIDE)
+        {
+          if (pieceAdverseTrouvee != 0U)
+          {
+            return 1U;
+          }
+        }
+        else if (CaseContientPieceAdverse(etat, (uint8_t)ligneCourante, (uint8_t)colonneCourante) != 0U)
+        {
+          if (pieceAdverseTrouvee != 0U)
+          {
+            break;
+          }
+
+          pieceAdverseTrouvee = 1U;
+        }
+        else
+        {
+          break;
+        }
+
+        ligneCourante += directions[indexDirection][0];
+        colonneCourante += directions[indexDirection][1];
+      }
+    }
+  }
+
+  return 0U;
+}
+
 static void ChangerJoueurCourant(EtatPartie *etat)
 {
   etat->joueurCourant = (etat->joueurCourant == JOUEUR_BLANC) ? JOUEUR_NOIR : JOUEUR_BLANC;
@@ -447,8 +535,6 @@ static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase ar
 {
   etat->plateau[arrivee.ligne][arrivee.colonne] = etat->plateau[depart.ligne][depart.colonne];
   etat->plateau[depart.ligne][depart.colonne] = CASE_VIDE;
-
-  PromouvoirPionSiNecessaire(etat, arrivee);
 }
 
 static void EffectuerPriseSimple(EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase caseCapturee)
@@ -460,6 +546,7 @@ static void EffectuerPriseSimple(EtatPartie *etat, PositionCase depart, Position
 static void DeselectionnerCase(EtatPartie *etat)
 {
   etat->selectionActive = 0U;
+  etat->priseMultipleActive = 0U;
   etat->caseSelectionnee.ligne = 0U;
   etat->caseSelectionnee.colonne = 0U;
 }
@@ -707,8 +794,27 @@ int main(void)
         {
           caseDepart = etatPartie.caseSelectionnee;
 
-          if ((caseDepart.ligne == caseTouchee.ligne) &&
-              (caseDepart.colonne == caseTouchee.colonne))
+          if (etatPartie.priseMultipleActive != 0U)
+          {
+            if (PriseSimpleEstValide(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
+            {
+              EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
+              SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+
+              if (PiecePeutCapturerDepuis(&etatPartie, caseTouchee) != 0U)
+              {
+                etatPartie.priseMultipleActive = 1U;
+              }
+              else
+              {
+                PromouvoirPionSiNecessaire(&etatPartie, caseTouchee);
+                DeselectionnerCase(&etatPartie);
+                ChangerJoueurCourant(&etatPartie);
+              }
+            }
+          }
+          else if ((caseDepart.ligne == caseTouchee.ligne) &&
+                   (caseDepart.colonne == caseTouchee.colonne))
           {
             DeselectionnerCase(&etatPartie);
           }
@@ -717,15 +823,26 @@ int main(void)
           {
             SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
           }
-          else if (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U)
-          {
-            DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
-            DeselectionnerCase(&etatPartie);
-            ChangerJoueurCourant(&etatPartie);
-          }
           else if (PriseSimpleEstValide(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
           {
             EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
+            SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+
+            if (PiecePeutCapturerDepuis(&etatPartie, caseTouchee) != 0U)
+            {
+              etatPartie.priseMultipleActive = 1U;
+            }
+            else
+            {
+              PromouvoirPionSiNecessaire(&etatPartie, caseTouchee);
+              DeselectionnerCase(&etatPartie);
+              ChangerJoueurCourant(&etatPartie);
+            }
+          }
+          else if (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U)
+          {
+            DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
+            PromouvoirPionSiNecessaire(&etatPartie, caseTouchee);
             DeselectionnerCase(&etatPartie);
             ChangerJoueurCourant(&etatPartie);
           }
