@@ -112,7 +112,14 @@ static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
+static uint8_t CaseEstVide(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee);
+static uint8_t DeplacementSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
+static uint8_t DeplacementSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
+static uint8_t DeplacementSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
+static void ChangerJoueurCourant(EtatPartie *etat);
+static void PromouvoirPionSiNecessaire(EtatPartie *etat, PositionCase arrivee);
+static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase arrivee);
 static void DeselectionnerCase(EtatPartie *etat);
 static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static void DessinerPlateau(void);
@@ -197,6 +204,11 @@ static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, 
   return (uint8_t)((typeCase == PION_NOIR) || (typeCase == DAME_NOIRE));
 }
 
+static uint8_t CaseEstVide(const EtatPartie *etat, uint8_t ligne, uint8_t colonne)
+{
+  return (uint8_t)(etat->plateau[ligne][colonne] == CASE_VIDE);
+}
+
 static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee)
 {
   if ((xTactile < PLATEAU_X) || (xTactile >= (PLATEAU_X + TAILLE_PIXEL_PLATEAU)) ||
@@ -209,6 +221,121 @@ static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, 
   caseTouchee->ligne = (uint8_t)((yTactile - PLATEAU_Y) / TAILLE_CASE);
 
   return 1U;
+}
+
+static uint8_t DeplacementSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee)
+{
+  int32_t differenceLigne = (int32_t)arrivee.ligne - (int32_t)depart.ligne;
+  int32_t differenceColonne = (int32_t)arrivee.colonne - (int32_t)depart.colonne;
+  TypeCase typeCase = etat->plateau[depart.ligne][depart.colonne];
+
+  if ((CaseEstJouable(arrivee.ligne, arrivee.colonne) == 0U) ||
+      (CaseEstVide(etat, arrivee.ligne, arrivee.colonne) == 0U))
+  {
+    return 0U;
+  }
+
+  if ((differenceColonne != -1) && (differenceColonne != 1))
+  {
+    return 0U;
+  }
+
+  if ((typeCase == PION_BLANC) && (differenceLigne == 1))
+  {
+    return 1U;
+  }
+
+  if ((typeCase == PION_NOIR) && (differenceLigne == -1))
+  {
+    return 1U;
+  }
+
+  return 0U;
+}
+
+static uint8_t DeplacementSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee)
+{
+  int32_t differenceLigne = (int32_t)arrivee.ligne - (int32_t)depart.ligne;
+  int32_t differenceColonne = (int32_t)arrivee.colonne - (int32_t)depart.colonne;
+  int32_t pasLigne;
+  int32_t pasColonne;
+  int32_t ligneCourante;
+  int32_t colonneCourante;
+
+  if ((differenceLigne == 0) || (differenceColonne == 0) ||
+      ((differenceLigne > 0 ? differenceLigne : -differenceLigne) !=
+       (differenceColonne > 0 ? differenceColonne : -differenceColonne)))
+  {
+    return 0U;
+  }
+
+  if ((CaseEstJouable(arrivee.ligne, arrivee.colonne) == 0U) ||
+      (CaseEstVide(etat, arrivee.ligne, arrivee.colonne) == 0U))
+  {
+    return 0U;
+  }
+
+  pasLigne = (differenceLigne > 0) ? 1 : -1;
+  pasColonne = (differenceColonne > 0) ? 1 : -1;
+  ligneCourante = (int32_t)depart.ligne + pasLigne;
+  colonneCourante = (int32_t)depart.colonne + pasColonne;
+
+  while ((ligneCourante != (int32_t)arrivee.ligne) && (colonneCourante != (int32_t)arrivee.colonne))
+  {
+    if (etat->plateau[ligneCourante][colonneCourante] != CASE_VIDE)
+    {
+      return 0U;
+    }
+
+    ligneCourante += pasLigne;
+    colonneCourante += pasColonne;
+  }
+
+  return 1U;
+}
+
+static uint8_t DeplacementSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee)
+{
+  TypeCase typeCase = etat->plateau[depart.ligne][depart.colonne];
+
+  if ((typeCase == PION_BLANC) || (typeCase == PION_NOIR))
+  {
+    return DeplacementSimplePionEstValide(etat, depart, arrivee);
+  }
+
+  if ((typeCase == DAME_BLANCHE) || (typeCase == DAME_NOIRE))
+  {
+    return DeplacementSimpleDameEstValide(etat, depart, arrivee);
+  }
+
+  return 0U;
+}
+
+static void ChangerJoueurCourant(EtatPartie *etat)
+{
+  etat->joueurCourant = (etat->joueurCourant == JOUEUR_BLANC) ? JOUEUR_NOIR : JOUEUR_BLANC;
+}
+
+static void PromouvoirPionSiNecessaire(EtatPartie *etat, PositionCase arrivee)
+{
+  if ((etat->plateau[arrivee.ligne][arrivee.colonne] == PION_BLANC) &&
+      (arrivee.ligne == (TAILLE_PLATEAU - 1U)))
+  {
+    etat->plateau[arrivee.ligne][arrivee.colonne] = DAME_BLANCHE;
+  }
+  else if ((etat->plateau[arrivee.ligne][arrivee.colonne] == PION_NOIR) &&
+           (arrivee.ligne == 0U))
+  {
+    etat->plateau[arrivee.ligne][arrivee.colonne] = DAME_NOIRE;
+  }
+}
+
+static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase arrivee)
+{
+  etat->plateau[arrivee.ligne][arrivee.colonne] = etat->plateau[depart.ligne][depart.colonne];
+  etat->plateau[depart.ligne][depart.colonne] = CASE_VIDE;
+
+  PromouvoirPionSiNecessaire(etat, arrivee);
 }
 
 static void DeselectionnerCase(EtatPartie *etat)
@@ -362,6 +489,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
   TS_StateTypeDef etatTactile = {0};
   PositionCase caseTouchee = {0};
+  PositionCase caseDepart = {0};
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
 
@@ -427,25 +555,35 @@ int main(void)
     {
       if (ConvertirCoordonneesEnCase(etatTactile.touchX[0], etatTactile.touchY[0], &caseTouchee) != 0U)
       {
-        if ((etatPartie.selectionActive != 0U) &&
-            (etatPartie.caseSelectionnee.ligne == caseTouchee.ligne) &&
-            (etatPartie.caseSelectionnee.colonne == caseTouchee.colonne))
+        if (etatPartie.selectionActive == 0U)
         {
-          DeselectionnerCase(&etatPartie);
-        }
-        else if (CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) != 0U &&
-                 CaseContientPieceDuJoueur(&etatPartie, caseTouchee.ligne, caseTouchee.colonne) != 0U)
-        {
-          SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+          if (CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) != 0U &&
+              CaseContientPieceDuJoueur(&etatPartie, caseTouchee.ligne, caseTouchee.colonne) != 0U)
+          {
+            SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+          }
         }
         else
         {
-          DeselectionnerCase(&etatPartie);
+          caseDepart = etatPartie.caseSelectionnee;
+
+          if ((caseDepart.ligne == caseTouchee.ligne) &&
+              (caseDepart.colonne == caseTouchee.colonne))
+          {
+            DeselectionnerCase(&etatPartie);
+          }
+          else if (CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) != 0U &&
+                   CaseContientPieceDuJoueur(&etatPartie, caseTouchee.ligne, caseTouchee.colonne) != 0U)
+          {
+            SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+          }
+          else if (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U)
+          {
+            DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
+            DeselectionnerCase(&etatPartie);
+            ChangerJoueurCourant(&etatPartie);
+          }
         }
-      }
-      else
-      {
-        DeselectionnerCase(&etatPartie);
       }
 
       DessinerElementsJeu(&etatPartie);
