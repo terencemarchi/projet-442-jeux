@@ -125,6 +125,8 @@ static uint8_t PriseSimplePionEstValide(const EtatPartie *etat, PositionCase dep
 static uint8_t PriseSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static uint8_t PriseSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depart);
+static uint8_t JoueurDoitCapturer(const EtatPartie *etat);
+static uint8_t PiecePeutEtreSelectionnee(const EtatPartie *etat, PositionCase caseTouchee);
 static void ChangerJoueurCourant(EtatPartie *etat);
 static void PromouvoirPionSiNecessaire(EtatPartie *etat, PositionCase arrivee);
 static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase arrivee);
@@ -512,6 +514,48 @@ static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depa
   return 0U;
 }
 
+static uint8_t JoueurDoitCapturer(const EtatPartie *etat)
+{
+  PositionCase position;
+  uint32_t ligne;
+  uint32_t colonne;
+
+  for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      if (CaseContientPieceDuJoueur(etat, (uint8_t)ligne, (uint8_t)colonne) != 0U)
+      {
+        position.ligne = (uint8_t)ligne;
+        position.colonne = (uint8_t)colonne;
+
+        if (PiecePeutCapturerDepuis(etat, position) != 0U)
+        {
+          return 1U;
+        }
+      }
+    }
+  }
+
+  return 0U;
+}
+
+static uint8_t PiecePeutEtreSelectionnee(const EtatPartie *etat, PositionCase caseTouchee)
+{
+  if ((CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) == 0U) ||
+      (CaseContientPieceDuJoueur(etat, caseTouchee.ligne, caseTouchee.colonne) == 0U))
+  {
+    return 0U;
+  }
+
+  if (JoueurDoitCapturer(etat) == 0U)
+  {
+    return 1U;
+  }
+
+  return PiecePeutCapturerDepuis(etat, caseTouchee);
+}
+
 static void ChangerJoueurCourant(EtatPartie *etat)
 {
   etat->joueurCourant = (etat->joueurCourant == JOUEUR_BLANC) ? JOUEUR_NOIR : JOUEUR_BLANC;
@@ -717,6 +761,7 @@ int main(void)
   PositionCase caseTouchee = {0};
   PositionCase caseDepart = {0};
   PositionCase caseCapturee = {0};
+  uint8_t priseObligatoire = 0U;
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
 
@@ -780,12 +825,13 @@ int main(void)
 
     if ((etatTactile.touchDetected != 0U) && (tactileActifPrecedent == 0U))
     {
+      priseObligatoire = JoueurDoitCapturer(&etatPartie);
+
       if (ConvertirCoordonneesEnCase(etatTactile.touchX[0], etatTactile.touchY[0], &caseTouchee) != 0U)
       {
         if (etatPartie.selectionActive == 0U)
         {
-          if (CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) != 0U &&
-              CaseContientPieceDuJoueur(&etatPartie, caseTouchee.ligne, caseTouchee.colonne) != 0U)
+          if (PiecePeutEtreSelectionnee(&etatPartie, caseTouchee) != 0U)
           {
             SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
           }
@@ -818,8 +864,7 @@ int main(void)
           {
             DeselectionnerCase(&etatPartie);
           }
-          else if (CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) != 0U &&
-                   CaseContientPieceDuJoueur(&etatPartie, caseTouchee.ligne, caseTouchee.colonne) != 0U)
+          else if (PiecePeutEtreSelectionnee(&etatPartie, caseTouchee) != 0U)
           {
             SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
           }
@@ -839,7 +884,8 @@ int main(void)
               ChangerJoueurCourant(&etatPartie);
             }
           }
-          else if (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U)
+          else if ((priseObligatoire == 0U) &&
+                   (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U))
           {
             DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
             PromouvoirPionSiNecessaire(&etatPartie, caseTouchee);
