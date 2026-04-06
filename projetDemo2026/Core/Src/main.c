@@ -124,6 +124,9 @@ static uint8_t DeplacementSimpleEstValide(const EtatPartie *etat, PositionCase d
 static uint8_t PriseSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static uint8_t PriseSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static uint8_t PriseSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
+static uint8_t CalculerMaxPrisesDepuis(const EtatPartie *etat, PositionCase depart);
+static uint8_t CalculerMaxPrisesJoueur(const EtatPartie *etat);
+static uint8_t PriseRespecteLeMaximum(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depart);
 static uint8_t JoueurDoitCapturer(const EtatPartie *etat);
 static uint8_t PiecePeutEtreSelectionnee(const EtatPartie *etat, PositionCase caseTouchee);
@@ -436,51 +439,63 @@ static uint8_t PriseSimpleEstValide(const EtatPartie *etat, PositionCase depart,
   return 0U;
 }
 
-static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depart)
+static uint8_t CalculerMaxPrisesDepuis(const EtatPartie *etat, PositionCase depart)
 {
   TypeCase typeCase = etat->plateau[depart.ligne][depart.colonne];
-  int32_t directions[4][2] = {
-    {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
-  };
-  uint32_t indexDirection;
+  uint8_t maximum = 0U;
 
   if ((typeCase == PION_BLANC) || (typeCase == PION_NOIR))
   {
-    int32_t ligneAdverse;
-    int32_t colonneAdverse;
-    int32_t ligneArrivee;
-    int32_t colonneArrivee;
+    int32_t directions[4][2] = {
+      {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+    };
+    uint32_t indexDirection;
 
     for (indexDirection = 0; indexDirection < 4U; indexDirection++)
     {
-      ligneAdverse = (int32_t)depart.ligne + directions[indexDirection][0];
-      colonneAdverse = (int32_t)depart.colonne + directions[indexDirection][1];
-      ligneArrivee = (int32_t)depart.ligne + (2 * directions[indexDirection][0]);
-      colonneArrivee = (int32_t)depart.colonne + (2 * directions[indexDirection][1]);
+      PositionCase caseArrivee;
+      PositionCase caseCapturee;
+      EtatPartie copieEtat;
+      uint8_t nbPrises;
 
-      if ((CoordonneesSontDansPlateau(ligneAdverse, colonneAdverse) != 0U) &&
-          (CoordonneesSontDansPlateau(ligneArrivee, colonneArrivee) != 0U) &&
-          (CaseContientPieceAdverse(etat, (uint8_t)ligneAdverse, (uint8_t)colonneAdverse) != 0U) &&
-          (CaseEstVide(etat, (uint8_t)ligneArrivee, (uint8_t)colonneArrivee) != 0U))
+      if (CoordonneesSontDansPlateau((int32_t)depart.ligne + (2 * directions[indexDirection][0]),
+                                     (int32_t)depart.colonne + (2 * directions[indexDirection][1])) == 0U)
       {
-        return 1U;
+        continue;
+      }
+
+      caseArrivee.ligne = (uint8_t)((int32_t)depart.ligne + (2 * directions[indexDirection][0]));
+      caseArrivee.colonne = (uint8_t)((int32_t)depart.colonne + (2 * directions[indexDirection][1]));
+
+      if (PriseSimplePionEstValide(etat, depart, caseArrivee, &caseCapturee) != 0U)
+      {
+        copieEtat = *etat;
+        EffectuerPriseSimple(&copieEtat, depart, caseArrivee, caseCapturee);
+        nbPrises = (uint8_t)(1U + CalculerMaxPrisesDepuis(&copieEtat, caseArrivee));
+
+        if (nbPrises > maximum)
+        {
+          maximum = nbPrises;
+        }
       }
     }
 
-    return 0U;
+    return maximum;
   }
 
   if ((typeCase == DAME_BLANCHE) || (typeCase == DAME_NOIRE))
   {
-    int32_t ligneCourante;
-    int32_t colonneCourante;
-    uint8_t pieceAdverseTrouvee;
+    int32_t directions[4][2] = {
+      {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+    };
+    uint32_t indexDirection;
 
     for (indexDirection = 0; indexDirection < 4U; indexDirection++)
     {
-      ligneCourante = (int32_t)depart.ligne + directions[indexDirection][0];
-      colonneCourante = (int32_t)depart.colonne + directions[indexDirection][1];
-      pieceAdverseTrouvee = 0U;
+      int32_t ligneCourante = (int32_t)depart.ligne + directions[indexDirection][0];
+      int32_t colonneCourante = (int32_t)depart.colonne + directions[indexDirection][1];
+      uint8_t pieceAdverseTrouvee = 0U;
+      PositionCase caseCapturee = {0};
 
       while (CoordonneesSontDansPlateau(ligneCourante, colonneCourante) != 0U)
       {
@@ -488,7 +503,21 @@ static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depa
         {
           if (pieceAdverseTrouvee != 0U)
           {
-            return 1U;
+            PositionCase caseArrivee;
+            EtatPartie copieEtat;
+            uint8_t nbPrises;
+
+            caseArrivee.ligne = (uint8_t)ligneCourante;
+            caseArrivee.colonne = (uint8_t)colonneCourante;
+
+            copieEtat = *etat;
+            EffectuerPriseSimple(&copieEtat, depart, caseArrivee, caseCapturee);
+            nbPrises = (uint8_t)(1U + CalculerMaxPrisesDepuis(&copieEtat, caseArrivee));
+
+            if (nbPrises > maximum)
+            {
+              maximum = nbPrises;
+            }
           }
         }
         else if (CaseContientPieceAdverse(etat, (uint8_t)ligneCourante, (uint8_t)colonneCourante) != 0U)
@@ -499,6 +528,8 @@ static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depa
           }
 
           pieceAdverseTrouvee = 1U;
+          caseCapturee.ligne = (uint8_t)ligneCourante;
+          caseCapturee.colonne = (uint8_t)colonneCourante;
         }
         else
         {
@@ -511,12 +542,12 @@ static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depa
     }
   }
 
-  return 0U;
+  return maximum;
 }
 
-static uint8_t JoueurDoitCapturer(const EtatPartie *etat)
+static uint8_t CalculerMaxPrisesJoueur(const EtatPartie *etat)
 {
-  PositionCase position;
+  uint8_t maximum = 0U;
   uint32_t ligne;
   uint32_t colonne;
 
@@ -526,34 +557,79 @@ static uint8_t JoueurDoitCapturer(const EtatPartie *etat)
     {
       if (CaseContientPieceDuJoueur(etat, (uint8_t)ligne, (uint8_t)colonne) != 0U)
       {
+        PositionCase position;
+        uint8_t nbPrises;
+
         position.ligne = (uint8_t)ligne;
         position.colonne = (uint8_t)colonne;
+        nbPrises = CalculerMaxPrisesDepuis(etat, position);
 
-        if (PiecePeutCapturerDepuis(etat, position) != 0U)
+        if (nbPrises > maximum)
         {
-          return 1U;
+          maximum = nbPrises;
         }
       }
     }
   }
 
-  return 0U;
+  return maximum;
+}
+
+static uint8_t PriseRespecteLeMaximum(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee)
+{
+  PositionCase caseCaptureeLocale;
+  EtatPartie copieEtat;
+  uint8_t maximumDepuisDepart;
+  uint8_t nbPrises;
+
+  if (PriseSimpleEstValide(etat, depart, arrivee, &caseCaptureeLocale) == 0U)
+  {
+    return 0U;
+  }
+
+  copieEtat = *etat;
+  EffectuerPriseSimple(&copieEtat, depart, arrivee, caseCaptureeLocale);
+
+  maximumDepuisDepart = CalculerMaxPrisesDepuis(etat, depart);
+  nbPrises = (uint8_t)(1U + CalculerMaxPrisesDepuis(&copieEtat, arrivee));
+
+  if (nbPrises != maximumDepuisDepart)
+  {
+    return 0U;
+  }
+
+  *caseCapturee = caseCaptureeLocale;
+  return 1U;
+}
+
+static uint8_t PiecePeutCapturerDepuis(const EtatPartie *etat, PositionCase depart)
+{
+  return (uint8_t)(CalculerMaxPrisesDepuis(etat, depart) != 0U);
+}
+
+static uint8_t JoueurDoitCapturer(const EtatPartie *etat)
+{
+  return (uint8_t)(CalculerMaxPrisesJoueur(etat) != 0U);
 }
 
 static uint8_t PiecePeutEtreSelectionnee(const EtatPartie *etat, PositionCase caseTouchee)
 {
+  uint8_t maximumJoueur;
+
   if ((CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) == 0U) ||
       (CaseContientPieceDuJoueur(etat, caseTouchee.ligne, caseTouchee.colonne) == 0U))
   {
     return 0U;
   }
 
-  if (JoueurDoitCapturer(etat) == 0U)
+  maximumJoueur = CalculerMaxPrisesJoueur(etat);
+
+  if (maximumJoueur == 0U)
   {
     return 1U;
   }
 
-  return PiecePeutCapturerDepuis(etat, caseTouchee);
+  return (uint8_t)(CalculerMaxPrisesDepuis(etat, caseTouchee) == maximumJoueur);
 }
 
 static void ChangerJoueurCourant(EtatPartie *etat)
@@ -842,7 +918,7 @@ int main(void)
 
           if (etatPartie.priseMultipleActive != 0U)
           {
-            if (PriseSimpleEstValide(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
+            if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
             {
               EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
               SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
@@ -868,7 +944,7 @@ int main(void)
           {
             SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
           }
-          else if (PriseSimpleEstValide(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
+          else if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
           {
             EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
             SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
