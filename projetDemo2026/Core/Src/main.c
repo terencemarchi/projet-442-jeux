@@ -88,6 +88,7 @@ typedef struct
 #define COULEUR_PION_NOIR          ((uint32_t)0xFF303030)
 #define COULEUR_CONTOUR_PION_BLANC LCD_COLOR_BLACK
 #define COULEUR_CONTOUR_PION_NOIR  LCD_COLOR_WHITE
+#define COULEUR_SELECTION_CASE     LCD_COLOR_YELLOW
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -107,10 +108,14 @@ void SystemClock_Config(void);
 static void InitialiserPlateau(EtatPartie *etat);
 static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
+static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee);
+static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static void DessinerPlateau(void);
 static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uint16_t *y);
 static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour);
 static void DessinerPions(const EtatPartie *etat);
+static void DessinerSelection(const EtatPartie *etat);
+static void DessinerElementsJeu(const EtatPartie *etat);
 
 /* USER CODE END PFP */
 
@@ -169,6 +174,27 @@ static void InitialiserPartie(EtatPartie *etat)
   etat->caseSelectionnee.colonne = 0U;
 }
 
+static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee)
+{
+  if ((xTactile < PLATEAU_X) || (xTactile >= (PLATEAU_X + TAILLE_PIXEL_PLATEAU)) ||
+      (yTactile < PLATEAU_Y) || (yTactile >= (PLATEAU_Y + TAILLE_PIXEL_PLATEAU)))
+  {
+    return 0U;
+  }
+
+  caseTouchee->colonne = (uint8_t)((xTactile - PLATEAU_X) / TAILLE_CASE);
+  caseTouchee->ligne = (uint8_t)((yTactile - PLATEAU_Y) / TAILLE_CASE);
+
+  return 1U;
+}
+
+static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne)
+{
+  etat->selectionActive = 1U;
+  etat->caseSelectionnee.ligne = ligne;
+  etat->caseSelectionnee.colonne = colonne;
+}
+
 static void DessinerPlateau(void)
 {
   uint32_t ligne;
@@ -223,7 +249,6 @@ static void DessinerPions(const EtatPartie *etat)
   uint32_t colonne;
 
   BSP_LCD_SelectLayer(1);
-  BSP_LCD_Clear(0x00000000);
 
   for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
   {
@@ -255,6 +280,33 @@ static void DessinerPions(const EtatPartie *etat)
   }
 }
 
+static void DessinerSelection(const EtatPartie *etat)
+{
+  uint16_t x;
+  uint16_t y;
+
+  if (etat->selectionActive == 0U)
+  {
+    return;
+  }
+
+  x = (uint16_t)(PLATEAU_X + (etat->caseSelectionnee.colonne * TAILLE_CASE));
+  y = (uint16_t)(PLATEAU_Y + (etat->caseSelectionnee.ligne * TAILLE_CASE));
+
+  BSP_LCD_SetTextColor(COULEUR_SELECTION_CASE);
+  BSP_LCD_DrawRect(x, y, TAILLE_CASE, TAILLE_CASE);
+  BSP_LCD_DrawRect((uint16_t)(x + 1U), (uint16_t)(y + 1U), TAILLE_CASE - 2U, TAILLE_CASE - 2U);
+}
+
+static void DessinerElementsJeu(const EtatPartie *etat)
+{
+  BSP_LCD_SelectLayer(1);
+  BSP_LCD_Clear(0x00000000);
+
+  DessinerPions(etat);
+  DessinerSelection(etat);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -265,6 +317,9 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  TS_StateTypeDef etatTactile = {0};
+  PositionCase caseTouchee = {0};
+  uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -310,7 +365,7 @@ int main(void)
   BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS+ BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4);
   BSP_LCD_DisplayOn();
   DessinerPlateau();
-  DessinerPions(&etatPartie);
+  DessinerElementsJeu(&etatPartie);
   BSP_LCD_SelectLayer(1);
   BSP_LCD_SetFont(&Font12);
   BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
@@ -323,6 +378,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    BSP_TS_GetState(&etatTactile);
+
+    if ((etatTactile.touchDetected != 0U) && (tactileActifPrecedent == 0U))
+    {
+      if (ConvertirCoordonneesEnCase(etatTactile.touchX[0], etatTactile.touchY[0], &caseTouchee) != 0U)
+      {
+        SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+        DessinerElementsJeu(&etatPartie);
+      }
+    }
+
+    tactileActifPrecedent = (etatTactile.touchDetected != 0U) ? 1U : 0U;
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
