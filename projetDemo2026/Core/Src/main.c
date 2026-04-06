@@ -49,10 +49,16 @@
 #define PLATEAU_Y                  16U
 #define TAILLE_PIXEL_PLATEAU       (TAILLE_PLATEAU * TAILLE_CASE)
 #define EPAISSEUR_BORDURE_PLATEAU  2U
+#define NB_LIGNES_PIONS            4U
+#define RAYON_PION                 9U
 
 #define COULEUR_CASE_CLAIRE        ((uint32_t)0xFFF1E3C6)
 #define COULEUR_CASE_FONCEE        ((uint32_t)0xFF8B5A2B)
 #define COULEUR_FOND_ECRAN         LCD_COLOR_WHITE
+#define COULEUR_PION_BLANC         ((uint32_t)0xFFF7F3EB)
+#define COULEUR_PION_NOIR          ((uint32_t)0xFF303030)
+#define COULEUR_CONTOUR_PION_BLANC LCD_COLOR_BLACK
+#define COULEUR_CONTOUR_PION_NOIR  LCD_COLOR_WHITE
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -69,6 +75,9 @@
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void DessinerPlateau(void);
+static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uint16_t *y);
+static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour);
+static void DessinerPionsInitials(void);
 
 /* USER CODE END PFP */
 
@@ -99,6 +108,56 @@ static void DessinerPlateau(void)
 
       BSP_LCD_SetTextColor(((ligne + colonne) % 2U) == 0U ? COULEUR_CASE_CLAIRE : COULEUR_CASE_FONCEE);
       BSP_LCD_FillRect(x, y, TAILLE_CASE, TAILLE_CASE);
+    }
+  }
+}
+
+static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uint16_t *y)
+{
+  *x = (uint16_t)(PLATEAU_X + (colonne * TAILLE_CASE) + (TAILLE_CASE / 2U));
+  *y = (uint16_t)(PLATEAU_Y + (ligne * TAILLE_CASE) + (TAILLE_CASE / 2U));
+}
+
+static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour)
+{
+  uint16_t centreX;
+  uint16_t centreY;
+
+  ObtenirCentreCase(ligne, colonne, &centreX, &centreY);
+
+  BSP_LCD_SetTextColor(couleurRemplissage);
+  BSP_LCD_FillCircle(centreX, centreY, RAYON_PION);
+  BSP_LCD_SetTextColor(couleurContour);
+  BSP_LCD_DrawCircle(centreX, centreY, RAYON_PION);
+}
+
+static void DessinerPionsInitials(void)
+{
+  uint32_t ligne;
+  uint32_t colonne;
+
+  BSP_LCD_SelectLayer(1);
+  BSP_LCD_Clear(0x00000000);
+
+  for (ligne = 0; ligne < NB_LIGNES_PIONS; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      if (((ligne + colonne) % 2U) != 0U)
+      {
+        DessinerPion(ligne, colonne, COULEUR_PION_BLANC, COULEUR_CONTOUR_PION_BLANC);
+      }
+    }
+  }
+
+  for (ligne = TAILLE_PLATEAU - NB_LIGNES_PIONS; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      if (((ligne + colonne) % 2U) != 0U)
+      {
+        DessinerPion(ligne, colonne, COULEUR_PION_NOIR, COULEUR_CONTOUR_PION_NOIR);
+      }
     }
   }
 }
@@ -157,8 +216,8 @@ int main(void)
   BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS+ BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4);
   BSP_LCD_DisplayOn();
   DessinerPlateau();
+  DessinerPionsInitials();
   BSP_LCD_SelectLayer(1);
-  BSP_LCD_Clear(00);
   BSP_LCD_SetFont(&Font12);
   BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
   BSP_LCD_SetBackColor(00);
