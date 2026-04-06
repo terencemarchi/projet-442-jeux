@@ -34,8 +34,6 @@
 /* USER CODE BEGIN Includes */
 #include "stm32746g_discovery_lcd.h"
 #include "stm32746g_discovery_ts.h"
-#include "stdio.h"
-#include "HorombeRGB565.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,6 +43,16 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TAILLE_PLATEAU             10U
+#define TAILLE_CASE                24U
+#define PLATEAU_X                  16U
+#define PLATEAU_Y                  16U
+#define TAILLE_PIXEL_PLATEAU       (TAILLE_PLATEAU * TAILLE_CASE)
+#define EPAISSEUR_BORDURE_PLATEAU  2U
+
+#define COULEUR_CASE_CLAIRE        ((uint32_t)0xFFF1E3C6)
+#define COULEUR_CASE_FONCEE        ((uint32_t)0xFF8B5A2B)
+#define COULEUR_FOND_ECRAN         LCD_COLOR_WHITE
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,17 +63,45 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint32_t joystick_v;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+static void DessinerPlateau(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void DessinerPlateau(void)
+{
+  uint32_t ligne;
+  uint32_t colonne;
+  uint16_t x;
+  uint16_t y;
+
+  BSP_LCD_SelectLayer(0);
+  BSP_LCD_Clear(COULEUR_FOND_ECRAN);
+
+  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_FillRect(PLATEAU_X - EPAISSEUR_BORDURE_PLATEAU,
+                   PLATEAU_Y - EPAISSEUR_BORDURE_PLATEAU,
+                   TAILLE_PIXEL_PLATEAU + (2U * EPAISSEUR_BORDURE_PLATEAU),
+                   TAILLE_PIXEL_PLATEAU + (2U * EPAISSEUR_BORDURE_PLATEAU));
+
+  for (ligne = 0; ligne < TAILLE_PLATEAU; ligne++)
+  {
+    for (colonne = 0; colonne < TAILLE_PLATEAU; colonne++)
+    {
+      x = PLATEAU_X + (uint16_t)(colonne * TAILLE_CASE);
+      y = PLATEAU_Y + (uint16_t)(ligne * TAILLE_CASE);
+
+      BSP_LCD_SetTextColor(((ligne + colonne) % 2U) == 0U ? COULEUR_CASE_CLAIRE : COULEUR_CASE_FONCEE);
+      BSP_LCD_FillRect(x, y, TAILLE_CASE, TAILLE_CASE);
+    }
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -77,12 +113,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	char text[60]={};
-	static TS_StateTypeDef  TS_State;
-	uint32_t potl,potr,joystick_h;
-	ADC_ChannelConfTypeDef sConfig = {0};
-	sConfig.Rank = ADC_REGULAR_RANK_1;
-	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -126,9 +156,7 @@ int main(void)
   BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
   BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS+ BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4);
   BSP_LCD_DisplayOn();
-  BSP_LCD_SelectLayer(0);
-  BSP_LCD_Clear(LCD_COLOR_RED);
-  BSP_LCD_DrawBitmap(0,0,(uint8_t*)HorombeRGB565_bmp);
+  DessinerPlateau();
   BSP_LCD_SelectLayer(1);
   BSP_LCD_Clear(00);
   BSP_LCD_SetFont(&Font12);
@@ -142,42 +170,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  	HAL_GPIO_WritePin(LED13_GPIO_Port,LED13_Pin,HAL_GPIO_ReadPin(BP1_GPIO_Port,BP1_Pin));
-		HAL_GPIO_WritePin(LED14_GPIO_Port,LED14_Pin,HAL_GPIO_ReadPin(BP2_GPIO_Port,BP2_Pin));
-		sprintf(text,"BP1 : %d",HAL_GPIO_ReadPin(BP1_GPIO_Port,BP1_Pin));
-		BSP_LCD_DisplayStringAtLine(5,(uint8_t*) text);
-
-		sConfig.Channel = ADC_CHANNEL_6;
-		HAL_ADC_ConfigChannel(&hadc3, &sConfig);
-		HAL_ADC_Start(&hadc3);
-		while(HAL_ADC_PollForConversion(&hadc3, 100)!=HAL_OK);
-		potr = HAL_ADC_GetValue(&hadc3);
-
-		sConfig.Channel = ADC_CHANNEL_7;
-		HAL_ADC_ConfigChannel(&hadc3, &sConfig);
-		HAL_ADC_Start(&hadc3);
-		while(HAL_ADC_PollForConversion(&hadc3, 100)!=HAL_OK);
-		potl = HAL_ADC_GetValue(&hadc3);
-
-		sConfig.Channel = ADC_CHANNEL_8;
-		HAL_ADC_ConfigChannel(&hadc3, &sConfig);
-		HAL_ADC_Start(&hadc3);
-		while(HAL_ADC_PollForConversion(&hadc3, 100)!=HAL_OK);
-		joystick_v = HAL_ADC_GetValue(&hadc3);
-
-		HAL_ADC_Start(&hadc1);
-		while(HAL_ADC_PollForConversion(&hadc1, 100)!=HAL_OK);
-		joystick_h = HAL_ADC_GetValue(&hadc1);
-
-		sprintf(text,"POTL : %4u POTR : %4u joy_v : %4u joy_h : %4u",(uint16_t)potl,(uint16_t)potr,(uint16_t)joystick_v,(uint16_t)joystick_h);
-		BSP_LCD_DisplayStringAtLine(9,(uint8_t*) text);
-
-		BSP_TS_GetState(&TS_State);
-		if(TS_State.touchDetected){
-			//On vérifie que le cercle de rayon 4 dessiné autour du point sera bien sur l'écran
-			if((TS_State.touchX[0]>4) && (TS_State.touchX[0]<476) && (TS_State.touchY[0]>4) && (TS_State.touchY[0]<268))
-					BSP_LCD_FillCircle(TS_State.touchX[0],TS_State.touchY[0],4);
-	  	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
