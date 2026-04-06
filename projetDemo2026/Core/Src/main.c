@@ -81,6 +81,7 @@ typedef struct
 #define EPAISSEUR_BORDURE_PLATEAU  2U
 #define NB_LIGNES_PIONS            4U
 #define RAYON_PION                 9U
+#define RAYON_SYMBOLE_DAME         4U
 
 #define COULEUR_CASE_CLAIRE        ((uint32_t)0xFFF1E3C6)
 #define COULEUR_CASE_FONCEE        ((uint32_t)0xFF8B5A2B)
@@ -112,19 +113,25 @@ static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
+static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t CaseEstVide(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee);
 static uint8_t DeplacementSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
 static uint8_t DeplacementSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
 static uint8_t DeplacementSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee);
+static uint8_t PriseSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
+static uint8_t PriseSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
+static uint8_t PriseSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee);
 static void ChangerJoueurCourant(EtatPartie *etat);
 static void PromouvoirPionSiNecessaire(EtatPartie *etat, PositionCase arrivee);
 static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase arrivee);
+static void EffectuerPriseSimple(EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase caseCapturee);
 static void DeselectionnerCase(EtatPartie *etat);
 static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static void DessinerPlateau(void);
 static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uint16_t *y);
 static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour);
+static void DessinerSymboleDame(uint32_t ligne, uint32_t colonne, uint32_t couleurSymbole);
 static void DessinerPions(const EtatPartie *etat);
 static void DessinerSelection(const EtatPartie *etat);
 static void DessinerInfosJeu(const EtatPartie *etat);
@@ -202,6 +209,18 @@ static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, 
   }
 
   return (uint8_t)((typeCase == PION_NOIR) || (typeCase == DAME_NOIRE));
+}
+
+static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, uint8_t colonne)
+{
+  TypeCase typeCase = etat->plateau[ligne][colonne];
+
+  if (etat->joueurCourant == JOUEUR_BLANC)
+  {
+    return (uint8_t)((typeCase == PION_NOIR) || (typeCase == DAME_NOIRE));
+  }
+
+  return (uint8_t)((typeCase == PION_BLANC) || (typeCase == DAME_BLANCHE));
 }
 
 static uint8_t CaseEstVide(const EtatPartie *etat, uint8_t ligne, uint8_t colonne)
@@ -311,6 +330,100 @@ static uint8_t DeplacementSimpleEstValide(const EtatPartie *etat, PositionCase d
   return 0U;
 }
 
+static uint8_t PriseSimplePionEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee)
+{
+  int32_t differenceLigne = (int32_t)arrivee.ligne - (int32_t)depart.ligne;
+  int32_t differenceColonne = (int32_t)arrivee.colonne - (int32_t)depart.colonne;
+
+  if ((CaseEstJouable(arrivee.ligne, arrivee.colonne) == 0U) ||
+      (CaseEstVide(etat, arrivee.ligne, arrivee.colonne) == 0U))
+  {
+    return 0U;
+  }
+
+  if (!(((differenceLigne == 2) || (differenceLigne == -2)) &&
+        ((differenceColonne == 2) || (differenceColonne == -2))))
+  {
+    return 0U;
+  }
+
+  caseCapturee->ligne = (uint8_t)((depart.ligne + arrivee.ligne) / 2U);
+  caseCapturee->colonne = (uint8_t)((depart.colonne + arrivee.colonne) / 2U);
+
+  return CaseContientPieceAdverse(etat, caseCapturee->ligne, caseCapturee->colonne);
+}
+
+static uint8_t PriseSimpleDameEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee)
+{
+  int32_t differenceLigne = (int32_t)arrivee.ligne - (int32_t)depart.ligne;
+  int32_t differenceColonne = (int32_t)arrivee.colonne - (int32_t)depart.colonne;
+  int32_t pasLigne;
+  int32_t pasColonne;
+  int32_t ligneCourante;
+  int32_t colonneCourante;
+  uint8_t pieceAdverseTrouvee = 0U;
+
+  if ((differenceLigne == 0) || (differenceColonne == 0) ||
+      ((differenceLigne > 0 ? differenceLigne : -differenceLigne) !=
+       (differenceColonne > 0 ? differenceColonne : -differenceColonne)))
+  {
+    return 0U;
+  }
+
+  if ((CaseEstJouable(arrivee.ligne, arrivee.colonne) == 0U) ||
+      (CaseEstVide(etat, arrivee.ligne, arrivee.colonne) == 0U))
+  {
+    return 0U;
+  }
+
+  pasLigne = (differenceLigne > 0) ? 1 : -1;
+  pasColonne = (differenceColonne > 0) ? 1 : -1;
+  ligneCourante = (int32_t)depart.ligne + pasLigne;
+  colonneCourante = (int32_t)depart.colonne + pasColonne;
+
+  while ((ligneCourante != (int32_t)arrivee.ligne) && (colonneCourante != (int32_t)arrivee.colonne))
+  {
+    if (etat->plateau[ligneCourante][colonneCourante] != CASE_VIDE)
+    {
+      if (CaseContientPieceAdverse(etat, (uint8_t)ligneCourante, (uint8_t)colonneCourante) == 0U)
+      {
+        return 0U;
+      }
+
+      if (pieceAdverseTrouvee != 0U)
+      {
+        return 0U;
+      }
+
+      pieceAdverseTrouvee = 1U;
+      caseCapturee->ligne = (uint8_t)ligneCourante;
+      caseCapturee->colonne = (uint8_t)colonneCourante;
+    }
+
+    ligneCourante += pasLigne;
+    colonneCourante += pasColonne;
+  }
+
+  return pieceAdverseTrouvee;
+}
+
+static uint8_t PriseSimpleEstValide(const EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase *caseCapturee)
+{
+  TypeCase typeCase = etat->plateau[depart.ligne][depart.colonne];
+
+  if ((typeCase == PION_BLANC) || (typeCase == PION_NOIR))
+  {
+    return PriseSimplePionEstValide(etat, depart, arrivee, caseCapturee);
+  }
+
+  if ((typeCase == DAME_BLANCHE) || (typeCase == DAME_NOIRE))
+  {
+    return PriseSimpleDameEstValide(etat, depart, arrivee, caseCapturee);
+  }
+
+  return 0U;
+}
+
 static void ChangerJoueurCourant(EtatPartie *etat)
 {
   etat->joueurCourant = (etat->joueurCourant == JOUEUR_BLANC) ? JOUEUR_NOIR : JOUEUR_BLANC;
@@ -336,6 +449,12 @@ static void DeplacerPiece(EtatPartie *etat, PositionCase depart, PositionCase ar
   etat->plateau[depart.ligne][depart.colonne] = CASE_VIDE;
 
   PromouvoirPionSiNecessaire(etat, arrivee);
+}
+
+static void EffectuerPriseSimple(EtatPartie *etat, PositionCase depart, PositionCase arrivee, PositionCase caseCapturee)
+{
+  DeplacerPiece(etat, depart, arrivee);
+  etat->plateau[caseCapturee.ligne][caseCapturee.colonne] = CASE_VIDE;
 }
 
 static void DeselectionnerCase(EtatPartie *etat)
@@ -400,6 +519,24 @@ static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRempl
   BSP_LCD_DrawCircle(centreX, centreY, RAYON_PION);
 }
 
+static void DessinerSymboleDame(uint32_t ligne, uint32_t colonne, uint32_t couleurSymbole)
+{
+  uint16_t centreX;
+  uint16_t centreY;
+
+  ObtenirCentreCase(ligne, colonne, &centreX, &centreY);
+
+  BSP_LCD_SetTextColor(couleurSymbole);
+  BSP_LCD_DrawLine((uint16_t)(centreX - RAYON_SYMBOLE_DAME), centreY,
+                   (uint16_t)(centreX + RAYON_SYMBOLE_DAME), centreY);
+  BSP_LCD_DrawLine(centreX, (uint16_t)(centreY - RAYON_SYMBOLE_DAME),
+                   centreX, (uint16_t)(centreY + RAYON_SYMBOLE_DAME));
+  BSP_LCD_DrawLine((uint16_t)(centreX - RAYON_SYMBOLE_DAME), (uint16_t)(centreY - RAYON_SYMBOLE_DAME),
+                   (uint16_t)(centreX + RAYON_SYMBOLE_DAME), (uint16_t)(centreY + RAYON_SYMBOLE_DAME));
+  BSP_LCD_DrawLine((uint16_t)(centreX - RAYON_SYMBOLE_DAME), (uint16_t)(centreY + RAYON_SYMBOLE_DAME),
+                   (uint16_t)(centreX + RAYON_SYMBOLE_DAME), (uint16_t)(centreY - RAYON_SYMBOLE_DAME));
+}
+
 static void DessinerPions(const EtatPartie *etat)
 {
   uint32_t ligne;
@@ -423,10 +560,12 @@ static void DessinerPions(const EtatPartie *etat)
 
         case DAME_BLANCHE:
           DessinerPion(ligne, colonne, COULEUR_PION_BLANC, COULEUR_CONTOUR_PION_BLANC);
+          DessinerSymboleDame(ligne, colonne, COULEUR_PION_NOIR);
           break;
 
         case DAME_NOIRE:
           DessinerPion(ligne, colonne, COULEUR_PION_NOIR, COULEUR_CONTOUR_PION_NOIR);
+          DessinerSymboleDame(ligne, colonne, COULEUR_PION_BLANC);
           break;
 
         case CASE_VIDE:
@@ -490,6 +629,7 @@ int main(void)
   TS_StateTypeDef etatTactile = {0};
   PositionCase caseTouchee = {0};
   PositionCase caseDepart = {0};
+  PositionCase caseCapturee = {0};
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
 
@@ -580,6 +720,12 @@ int main(void)
           else if (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U)
           {
             DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
+            DeselectionnerCase(&etatPartie);
+            ChangerJoueurCourant(&etatPartie);
+          }
+          else if (PriseSimpleEstValide(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
+          {
+            EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
             DeselectionnerCase(&etatPartie);
             ChangerJoueurCourant(&etatPartie);
           }
