@@ -32,6 +32,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdio.h"
 #include "stm32746g_discovery_lcd.h"
 #include "stm32746g_discovery_ts.h"
 /* USER CODE END Includes */
@@ -89,6 +90,7 @@ typedef struct
 #define COULEUR_CONTOUR_PION_BLANC LCD_COLOR_BLACK
 #define COULEUR_CONTOUR_PION_NOIR  LCD_COLOR_WHITE
 #define COULEUR_SELECTION_CASE     LCD_COLOR_YELLOW
+#define COULEUR_INFOS_JEU          LCD_COLOR_DARKBLUE
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -108,13 +110,17 @@ void SystemClock_Config(void);
 static void InitialiserPlateau(EtatPartie *etat);
 static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
+static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne);
+static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee);
+static void DeselectionnerCase(EtatPartie *etat);
 static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static void DessinerPlateau(void);
 static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uint16_t *y);
 static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour);
 static void DessinerPions(const EtatPartie *etat);
 static void DessinerSelection(const EtatPartie *etat);
+static void DessinerInfosJeu(const EtatPartie *etat);
 static void DessinerElementsJeu(const EtatPartie *etat);
 
 /* USER CODE END PFP */
@@ -174,6 +180,23 @@ static void InitialiserPartie(EtatPartie *etat)
   etat->caseSelectionnee.colonne = 0U;
 }
 
+static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne)
+{
+  return (uint8_t)(((ligne + colonne) % 2U) != 0U);
+}
+
+static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne)
+{
+  TypeCase typeCase = etat->plateau[ligne][colonne];
+
+  if (etat->joueurCourant == JOUEUR_BLANC)
+  {
+    return (uint8_t)((typeCase == PION_BLANC) || (typeCase == DAME_BLANCHE));
+  }
+
+  return (uint8_t)((typeCase == PION_NOIR) || (typeCase == DAME_NOIRE));
+}
+
 static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, PositionCase *caseTouchee)
 {
   if ((xTactile < PLATEAU_X) || (xTactile >= (PLATEAU_X + TAILLE_PIXEL_PLATEAU)) ||
@@ -186,6 +209,13 @@ static uint8_t ConvertirCoordonneesEnCase(uint16_t xTactile, uint16_t yTactile, 
   caseTouchee->ligne = (uint8_t)((yTactile - PLATEAU_Y) / TAILLE_CASE);
 
   return 1U;
+}
+
+static void DeselectionnerCase(EtatPartie *etat)
+{
+  etat->selectionActive = 0U;
+  etat->caseSelectionnee.ligne = 0U;
+  etat->caseSelectionnee.colonne = 0U;
 }
 
 static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne)
@@ -298,6 +328,18 @@ static void DessinerSelection(const EtatPartie *etat)
   BSP_LCD_DrawRect((uint16_t)(x + 1U), (uint16_t)(y + 1U), TAILLE_CASE - 2U, TAILLE_CASE - 2U);
 }
 
+static void DessinerInfosJeu(const EtatPartie *etat)
+{
+  char texte[40];
+
+  BSP_LCD_SetFont(&Font12);
+  BSP_LCD_SetTextColor(COULEUR_INFOS_JEU);
+  BSP_LCD_SetBackColor(0x00000000);
+
+  snprintf(texte, sizeof(texte), "Tour : %s", etat->joueurCourant == JOUEUR_BLANC ? "blanc" : "noir");
+  BSP_LCD_DisplayStringAt(280, 24, (uint8_t *)texte, LEFT_MODE);
+}
+
 static void DessinerElementsJeu(const EtatPartie *etat)
 {
   BSP_LCD_SelectLayer(1);
@@ -305,6 +347,7 @@ static void DessinerElementsJeu(const EtatPartie *etat)
 
   DessinerPions(etat);
   DessinerSelection(etat);
+  DessinerInfosJeu(etat);
 }
 
 /* USER CODE END 0 */
@@ -384,9 +427,28 @@ int main(void)
     {
       if (ConvertirCoordonneesEnCase(etatTactile.touchX[0], etatTactile.touchY[0], &caseTouchee) != 0U)
       {
-        SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
-        DessinerElementsJeu(&etatPartie);
+        if ((etatPartie.selectionActive != 0U) &&
+            (etatPartie.caseSelectionnee.ligne == caseTouchee.ligne) &&
+            (etatPartie.caseSelectionnee.colonne == caseTouchee.colonne))
+        {
+          DeselectionnerCase(&etatPartie);
+        }
+        else if (CaseEstJouable(caseTouchee.ligne, caseTouchee.colonne) != 0U &&
+                 CaseContientPieceDuJoueur(&etatPartie, caseTouchee.ligne, caseTouchee.colonne) != 0U)
+        {
+          SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+        }
+        else
+        {
+          DeselectionnerCase(&etatPartie);
+        }
       }
+      else
+      {
+        DeselectionnerCase(&etatPartie);
+      }
+
+      DessinerElementsJeu(&etatPartie);
     }
 
     tactileActifPrecedent = (etatTactile.touchDetected != 0U) ? 1U : 0U;
