@@ -33,6 +33,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "string.h"
 #include "stm32746g_discovery_lcd.h"
 #include "stm32746g_discovery_ts.h"
 /* USER CODE END Includes */
@@ -55,6 +56,12 @@ typedef enum
   JOUEUR_BLANC = 0,
   JOUEUR_NOIR
 } TypeJoueur;
+
+typedef enum
+{
+  ECRAN_ACCUEIL = 0,
+  ECRAN_JEU
+} TypeEcran;
 
 typedef struct
 {
@@ -96,6 +103,22 @@ typedef struct
 #define COULEUR_CONTOUR_PION_NOIR  LCD_COLOR_WHITE
 #define COULEUR_SELECTION_CASE     LCD_COLOR_YELLOW
 #define COULEUR_INFOS_JEU          LCD_COLOR_DARKBLUE
+#define COULEUR_ACCUEIL_FOND       ((uint32_t)0xFFF8F3EA)
+#define COULEUR_CARTE_JEU          ((uint32_t)0xFFE4D1B0)
+#define COULEUR_CARTE_BORDURE      ((uint32_t)0xFF7B4F29)
+#define COULEUR_TITRE_ACCUEIL      ((uint32_t)0xFF4F2F1A)
+#define COULEUR_BOUTON_QUITTER     LCD_COLOR_RED
+#define COULEUR_TEXTE_QUITTER      LCD_COLOR_WHITE
+
+#define CARTE_JEU_X                120U
+#define CARTE_JEU_Y                86U
+#define CARTE_JEU_LARGEUR          240U
+#define CARTE_JEU_HAUTEUR          90U
+
+#define BOUTON_QUITTER_X           360U
+#define BOUTON_QUITTER_Y           224U
+#define BOUTON_QUITTER_LARGEUR     100U
+#define BOUTON_QUITTER_HAUTEUR     32U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -107,6 +130,7 @@ typedef struct
 
 /* USER CODE BEGIN PV */
 static EtatPartie etatPartie;
+static TypeEcran ecranCourant = ECRAN_ACCUEIL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -117,6 +141,7 @@ static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
 static void ReinitialiserCapturesEnCours(EtatPartie *etat);
 static uint8_t CoordonneesSontDansPlateau(int32_t ligne, int32_t colonne);
+static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, uint16_t zoneY, uint16_t largeur, uint16_t hauteur);
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
@@ -147,14 +172,19 @@ static void FinaliserTourSansCapture(EtatPartie *etat, PositionCase arrivee);
 static void FinaliserTourApresCapture(EtatPartie *etat, PositionCase arrivee);
 static void DeselectionnerCase(EtatPartie *etat);
 static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne);
+static void DessinerAccueil(void);
 static void DessinerPlateau(void);
 static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uint16_t *y);
+static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte);
 static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour);
 static void DessinerSymboleDame(uint32_t ligne, uint32_t colonne, uint32_t couleurSymbole);
 static void DessinerPions(const EtatPartie *etat);
 static void DessinerSelection(const EtatPartie *etat);
+static void DessinerBoutonQuitter(void);
 static void DessinerInfosJeu(const EtatPartie *etat);
 static void DessinerElementsJeu(const EtatPartie *etat);
+static void AfficherEcranJeu(void);
+static void AfficherEcranAccueil(void);
 
 /* USER CODE END PFP */
 
@@ -235,6 +265,12 @@ static uint8_t CoordonneesSontDansPlateau(int32_t ligne, int32_t colonne)
 {
   return (uint8_t)((ligne >= 0) && (ligne < (int32_t)TAILLE_PLATEAU) &&
                    (colonne >= 0) && (colonne < (int32_t)TAILLE_PLATEAU));
+}
+
+static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, uint16_t zoneY, uint16_t largeur, uint16_t hauteur)
+{
+  return (uint8_t)((x >= zoneX) && (x < (zoneX + largeur)) &&
+                   (y >= zoneY) && (y < (zoneY + hauteur)));
 }
 
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne)
@@ -867,6 +903,35 @@ static void SelectionnerCase(EtatPartie *etat, uint8_t ligne, uint8_t colonne)
   etat->caseSelectionnee.colonne = colonne;
 }
 
+static void DessinerAccueil(void)
+{
+  BSP_LCD_SelectLayer(0);
+  BSP_LCD_Clear(COULEUR_ACCUEIL_FOND);
+
+  BSP_LCD_SetFont(&Font24);
+  BSP_LCD_SetTextColor(COULEUR_TITRE_ACCUEIL);
+  BSP_LCD_SetBackColor(COULEUR_ACCUEIL_FOND);
+  AfficherTexteCentreZone(0, 24, (uint16_t)BSP_LCD_GetXSize(), "JEUX");
+
+  BSP_LCD_SetTextColor(COULEUR_CARTE_BORDURE);
+  BSP_LCD_FillRect(CARTE_JEU_X, CARTE_JEU_Y, CARTE_JEU_LARGEUR, CARTE_JEU_HAUTEUR);
+
+  BSP_LCD_SetTextColor(COULEUR_CARTE_JEU);
+  BSP_LCD_FillRect((uint16_t)(CARTE_JEU_X + 3U), (uint16_t)(CARTE_JEU_Y + 3U),
+                   (uint16_t)(CARTE_JEU_LARGEUR - 6U), (uint16_t)(CARTE_JEU_HAUTEUR - 6U));
+
+  BSP_LCD_SetFont(&Font20);
+  BSP_LCD_SetTextColor(COULEUR_TITRE_ACCUEIL);
+  BSP_LCD_SetBackColor(COULEUR_CARTE_JEU);
+  AfficherTexteCentreZone(CARTE_JEU_X, (uint16_t)(CARTE_JEU_Y + 18U), CARTE_JEU_LARGEUR, "Jeu de dames");
+
+  BSP_LCD_SetFont(&Font12);
+  AfficherTexteCentreZone(CARTE_JEU_X, (uint16_t)(CARTE_JEU_Y + 52U), CARTE_JEU_LARGEUR, "Toucher pour jouer");
+
+  BSP_LCD_SelectLayer(1);
+  BSP_LCD_Clear(0x00000000);
+}
+
 static void DessinerPlateau(void)
 {
   uint32_t ligne;
@@ -900,6 +965,27 @@ static void ObtenirCentreCase(uint32_t ligne, uint32_t colonne, uint16_t *x, uin
 {
   *x = (uint16_t)(PLATEAU_X + (colonne * TAILLE_CASE) + (TAILLE_CASE / 2U));
   *y = (uint16_t)(PLATEAU_Y + (ligne * TAILLE_CASE) + (TAILLE_CASE / 2U));
+}
+
+static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte)
+{
+  sFONT *policeCourante;
+  uint16_t largeurTexte;
+  uint16_t xTexte;
+
+  policeCourante = BSP_LCD_GetFont();
+  largeurTexte = (uint16_t)(strlen(texte) * policeCourante->Width);
+
+  if (largeurTexte >= largeur)
+  {
+    xTexte = x;
+  }
+  else
+  {
+    xTexte = (uint16_t)(x + ((largeur - largeurTexte) / 2U));
+  }
+
+  BSP_LCD_DisplayStringAt(xTexte, y, (uint8_t *)texte, LEFT_MODE);
 }
 
 static void DessinerPion(uint32_t ligne, uint32_t colonne, uint32_t couleurRemplissage, uint32_t couleurContour)
@@ -990,6 +1076,20 @@ static void DessinerSelection(const EtatPartie *etat)
   BSP_LCD_DrawRect((uint16_t)(x + 1U), (uint16_t)(y + 1U), TAILLE_CASE - 2U, TAILLE_CASE - 2U);
 }
 
+static void DessinerBoutonQuitter(void)
+{
+  BSP_LCD_SetTextColor(COULEUR_BOUTON_QUITTER);
+  BSP_LCD_FillRect(BOUTON_QUITTER_X, BOUTON_QUITTER_Y, BOUTON_QUITTER_LARGEUR, BOUTON_QUITTER_HAUTEUR);
+
+  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_DrawRect(BOUTON_QUITTER_X, BOUTON_QUITTER_Y, BOUTON_QUITTER_LARGEUR, BOUTON_QUITTER_HAUTEUR);
+
+  BSP_LCD_SetFont(&Font12);
+  BSP_LCD_SetTextColor(COULEUR_TEXTE_QUITTER);
+  BSP_LCD_SetBackColor(COULEUR_BOUTON_QUITTER);
+  AfficherTexteCentreZone(BOUTON_QUITTER_X, (uint16_t)(BOUTON_QUITTER_Y + 10U), BOUTON_QUITTER_LARGEUR, "Quitter");
+}
+
 static void DessinerInfosJeu(const EtatPartie *etat)
 {
   char texte[40];
@@ -1018,6 +1118,21 @@ static void DessinerElementsJeu(const EtatPartie *etat)
   DessinerPions(etat);
   DessinerSelection(etat);
   DessinerInfosJeu(etat);
+  DessinerBoutonQuitter();
+}
+
+static void AfficherEcranJeu(void)
+{
+  InitialiserPartie(&etatPartie);
+  ecranCourant = ECRAN_JEU;
+  DessinerPlateau();
+  DessinerElementsJeu(&etatPartie);
+}
+
+static void AfficherEcranAccueil(void)
+{
+  ecranCourant = ECRAN_ACCUEIL;
+  DessinerAccueil();
 }
 
 /* USER CODE END 0 */
@@ -1075,13 +1190,11 @@ int main(void)
   MX_DAC_Init();
   MX_UART7_Init();
   /* USER CODE BEGIN 2 */
-  InitialiserPartie(&etatPartie);
   BSP_LCD_Init();
   BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
   BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS+ BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4);
   BSP_LCD_DisplayOn();
-  DessinerPlateau();
-  DessinerElementsJeu(&etatPartie);
+  AfficherEcranAccueil();
   BSP_LCD_SelectLayer(1);
   BSP_LCD_SetFont(&Font12);
   BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
@@ -1096,27 +1209,67 @@ int main(void)
   {
     BSP_TS_GetState(&etatTactile);
 
-    if ((etatPartie.partieTerminee == 0U) &&
-        (etatTactile.touchDetected != 0U) && (tactileActifPrecedent == 0U))
+    if ((etatTactile.touchDetected != 0U) && (tactileActifPrecedent == 0U))
     {
-      priseObligatoire = JoueurDoitCapturer(&etatPartie);
-
-      if (ConvertirCoordonneesEnCase(etatTactile.touchX[0], etatTactile.touchY[0], &caseTouchee) != 0U)
+      if (ecranCourant == ECRAN_ACCUEIL)
       {
-        if (etatPartie.selectionActive == 0U)
+        if (CoordonneesSontDansZone(etatTactile.touchX[0], etatTactile.touchY[0],
+                                    CARTE_JEU_X, CARTE_JEU_Y, CARTE_JEU_LARGEUR, CARTE_JEU_HAUTEUR) != 0U)
         {
-          if (PiecePeutEtreSelectionnee(&etatPartie, caseTouchee) != 0U)
-          {
-            SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
-          }
+          AfficherEcranJeu();
         }
-        else
+      }
+      else if (ecranCourant == ECRAN_JEU)
+      {
+        if (CoordonneesSontDansZone(etatTactile.touchX[0], etatTactile.touchY[0],
+                                    BOUTON_QUITTER_X, BOUTON_QUITTER_Y,
+                                    BOUTON_QUITTER_LARGEUR, BOUTON_QUITTER_HAUTEUR) != 0U)
         {
-          caseDepart = etatPartie.caseSelectionnee;
+          AfficherEcranAccueil();
+        }
+        else if ((etatPartie.partieTerminee == 0U) &&
+                 (ConvertirCoordonneesEnCase(etatTactile.touchX[0], etatTactile.touchY[0], &caseTouchee) != 0U))
+        {
+          priseObligatoire = JoueurDoitCapturer(&etatPartie);
 
-          if (etatPartie.priseMultipleActive != 0U)
+          if (etatPartie.selectionActive == 0U)
           {
-            if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
+            if (PiecePeutEtreSelectionnee(&etatPartie, caseTouchee) != 0U)
+            {
+              SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+            }
+          }
+          else
+          {
+            caseDepart = etatPartie.caseSelectionnee;
+
+            if (etatPartie.priseMultipleActive != 0U)
+            {
+              if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
+              {
+                EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
+                SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+
+                if (PiecePeutCapturerDepuis(&etatPartie, caseTouchee) != 0U)
+                {
+                  etatPartie.priseMultipleActive = 1U;
+                }
+                else
+                {
+                  FinaliserTourApresCapture(&etatPartie, caseTouchee);
+                }
+              }
+            }
+            else if ((caseDepart.ligne == caseTouchee.ligne) &&
+                     (caseDepart.colonne == caseTouchee.colonne))
+            {
+              DeselectionnerCase(&etatPartie);
+            }
+            else if (PiecePeutEtreSelectionnee(&etatPartie, caseTouchee) != 0U)
+            {
+              SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
+            }
+            else if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
             {
               EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
               SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
@@ -1130,40 +1283,17 @@ int main(void)
                 FinaliserTourApresCapture(&etatPartie, caseTouchee);
               }
             }
+            else if ((priseObligatoire == 0U) &&
+                     (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U))
+            {
+              DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
+              FinaliserTourSansCapture(&etatPartie, caseTouchee);
+            }
           }
-          else if ((caseDepart.ligne == caseTouchee.ligne) &&
-                   (caseDepart.colonne == caseTouchee.colonne))
-          {
-            DeselectionnerCase(&etatPartie);
-          }
-          else if (PiecePeutEtreSelectionnee(&etatPartie, caseTouchee) != 0U)
-          {
-            SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
-          }
-          else if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
-          {
-            EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
-            SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
 
-            if (PiecePeutCapturerDepuis(&etatPartie, caseTouchee) != 0U)
-            {
-              etatPartie.priseMultipleActive = 1U;
-            }
-            else
-            {
-              FinaliserTourApresCapture(&etatPartie, caseTouchee);
-            }
-          }
-          else if ((priseObligatoire == 0U) &&
-                   (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U))
-          {
-            DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
-            FinaliserTourSansCapture(&etatPartie, caseTouchee);
-          }
+          DessinerElementsJeu(&etatPartie);
         }
       }
-
-      DessinerElementsJeu(&etatPartie);
     }
 
     tactileActifPrecedent = (etatTactile.touchDetected != 0U) ? 1U : 0U;
