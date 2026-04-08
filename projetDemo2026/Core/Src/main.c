@@ -35,6 +35,7 @@
 #include "string.h"
 #include "menu.h"
 #include "dames.h"
+#include "test_uart.h"
 #include "stm32746g_discovery_lcd.h"
 #include "stm32746g_discovery_ts.h"
 /* USER CODE END Includes */
@@ -45,7 +46,8 @@ typedef enum
 {
   ECRAN_ACCUEIL = 0,
   ECRAN_DAMES,
-  ECRAN_BLUETOOTH
+  ECRAN_BLUETOOTH,
+  ECRAN_TEST_UART
 } TypeEcran;
 
 /* USER CODE END PTD */
@@ -79,6 +81,7 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void AfficherEcranDames(void);
 static void AfficherEcranBluetooth(void);
+static void AfficherEcranTestUart(void);
 static void AfficherSousMenuDames(void);
 static void AfficherEcranAccueil(void);
 static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte);
@@ -125,6 +128,12 @@ static void AfficherEcranBluetooth(void)
 
   BSP_LCD_SelectLayer(1);
   BSP_LCD_Clear(0x00000000);
+}
+
+static void AfficherEcranTestUart(void)
+{
+  ecranCourant = ECRAN_TEST_UART;
+  TestUart_Afficher();
 }
 
 static void AfficherSousMenuDames(void)
@@ -253,6 +262,10 @@ int main(void)
         {
           AfficherEcranBluetooth();
         }
+        else if (actionMenu == MENU_ACTION_LANCER_TEST_UART)
+        {
+          AfficherEcranTestUart();
+        }
       }
       else if (ecranCourant == ECRAN_DAMES)
       {
@@ -270,6 +283,18 @@ int main(void)
           AfficherSousMenuDames();
         }
       }
+      else if (ecranCourant == ECRAN_TEST_UART)
+      {
+        if (TestUart_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == TEST_UART_ACTION_QUITTER)
+        {
+          AfficherEcranAccueil();
+        }
+      }
+    }
+
+    if (ecranCourant == ECRAN_TEST_UART)
+    {
+      TestUart_MettreAJour();
     }
 
     tactileActifPrecedent = (etatTactile.touchDetected != 0U) ? 1U : 0U;

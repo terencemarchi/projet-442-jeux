@@ -11,9 +11,13 @@
 #define COULEUR_BOUTON_RETOUR  ((uint32_t)0xFFD8C3A2)
 
 #define CARTE_JEU_X            120U
-#define CARTE_JEU_Y            86U
+#define CARTE_JEU_Y            70U
 #define CARTE_JEU_LARGEUR      240U
 #define CARTE_JEU_HAUTEUR      68U
+#define CARTE_TEST_UART_X      120U
+#define CARTE_TEST_UART_Y      156U
+#define CARTE_TEST_UART_LARGEUR 240U
+#define CARTE_TEST_UART_HAUTEUR 68U
 
 #define CARTE_MODE_X           100U
 #define CARTE_MODE_LARGEUR     280U
@@ -73,6 +77,13 @@ MenuAction Menu_GererTouch(uint16_t x, uint16_t y)
     {
       ecranMenuCourant = MENU_ECRAN_DAMES_MODE;
       Menu_Afficher();
+      return MENU_ACTION_AUCUNE;
+    }
+
+    if (CoordonneesSontDansZone(x, y, CARTE_TEST_UART_X, CARTE_TEST_UART_Y,
+                                CARTE_TEST_UART_LARGEUR, CARTE_TEST_UART_HAUTEUR) != 0U)
+    {
+      return MENU_ACTION_LANCER_TEST_UART;
     }
 
     return MENU_ACTION_AUCUNE;
@@ -109,6 +120,8 @@ static void AfficherAccueilPrincipal(void)
 
   DessinerCarte(CARTE_JEU_X, CARTE_JEU_Y, CARTE_JEU_LARGEUR, CARTE_JEU_HAUTEUR,
                 COULEUR_CARTE_JEU, "Jeu de dames", "Choisir un mode");
+  DessinerCarte(CARTE_TEST_UART_X, CARTE_TEST_UART_Y, CARTE_TEST_UART_LARGEUR, CARTE_TEST_UART_HAUTEUR,
+                COULEUR_CARTE_JEU, "Test UART", "Choisir emetteur ou recepteur");
 
   BSP_LCD_SelectLayer(1);
   BSP_LCD_Clear(0x00000000);
