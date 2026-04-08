@@ -227,6 +227,7 @@ int main(void)
   MX_DAC_Init();
   MX_UART7_Init();
   /* USER CODE BEGIN 2 */
+  TestUart_Initialiser();
   BSP_LCD_Init();
   BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
   BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS+ BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4);

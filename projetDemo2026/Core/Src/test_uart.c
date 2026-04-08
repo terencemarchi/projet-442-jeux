@@ -66,9 +66,16 @@ static void ReinitialiserReception(void);
 static void DemarrerReceptionUart(void);
 static void TraiterOctetRecu(uint8_t octetRecu);
 
-void TestUart_Afficher(void)
+void TestUart_Initialiser(void)
 {
   memset(&etatTestUart, 0, sizeof(etatTestUart));
+  etatTestUart.ecranCourant = ECRAN_TEST_UART_CHOIX;
+  ReinitialiserReception();
+  DemarrerReceptionUart();
+}
+
+void TestUart_Afficher(void)
+{
   etatTestUart.ecranCourant = ECRAN_TEST_UART_CHOIX;
   AfficherEcranCourant();
 }
@@ -88,8 +95,6 @@ TestUartAction TestUart_GererTouch(uint16_t x, uint16_t y)
     if (CoordonneesSontDansZone(x, y, CARTE_ROLE_X, CARTE_RECEPTEUR_Y, CARTE_ROLE_LARGEUR, CARTE_ROLE_HAUTEUR) != 0U)
     {
       etatTestUart.ecranCourant = ECRAN_TEST_UART_RECEPTEUR;
-      ReinitialiserReception();
-      DemarrerReceptionUart();
       AfficherEcranCourant();
       return TEST_UART_ACTION_AUCUNE;
     }
@@ -289,7 +294,7 @@ static void ReinitialiserReception(void)
 
 static void DemarrerReceptionUart(void)
 {
-  if (etatTestUart.ecranCourant != ECRAN_TEST_UART_RECEPTEUR)
+  if (etatTestUart.receptionArmee != 0U)
   {
     return;
   }
@@ -338,9 +343,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
   etatTestUart.receptionArmee = 0U;
 
+  TraiterOctetRecu(etatTestUart.octetRecu);
+  DemarrerReceptionUart();
+
   if (etatTestUart.ecranCourant == ECRAN_TEST_UART_RECEPTEUR)
   {
-    TraiterOctetRecu(etatTestUart.octetRecu);
-    DemarrerReceptionUart();
+    AfficherEcranRecepteur();
   }
 }
