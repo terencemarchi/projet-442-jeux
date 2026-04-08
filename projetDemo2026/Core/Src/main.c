@@ -32,6 +32,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "string.h"
 #include "menu.h"
 #include "dames.h"
 #include "stm32746g_discovery_lcd.h"
@@ -43,13 +44,23 @@
 typedef enum
 {
   ECRAN_ACCUEIL = 0,
-  ECRAN_DAMES
+  ECRAN_DAMES,
+  ECRAN_BLUETOOTH
 } TypeEcran;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define COULEUR_FOND_BLUETOOTH    ((uint32_t)0xFFF8F3EA)
+#define COULEUR_TITRE_BLUETOOTH   ((uint32_t)0xFF4F2F1A)
+#define COULEUR_BOUTON_RETOUR     ((uint32_t)0xFFD9534F)
+#define COULEUR_TEXTE_RETOUR      LCD_COLOR_WHITE
+
+#define BOUTON_RETOUR_X           160U
+#define BOUTON_RETOUR_Y           206U
+#define BOUTON_RETOUR_LARGEUR     160U
+#define BOUTON_RETOUR_HAUTEUR     36U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -67,7 +78,11 @@ static TypeEcran ecranCourant = ECRAN_ACCUEIL;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void AfficherEcranDames(void);
+static void AfficherEcranBluetooth(void);
+static void AfficherSousMenuDames(void);
 static void AfficherEcranAccueil(void);
+static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte);
+static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, uint16_t zoneY, uint16_t largeur, uint16_t hauteur);
 
 /* USER CODE END PFP */
 
@@ -79,10 +94,77 @@ static void AfficherEcranDames(void)
   Dames_AfficherNouvellePartie();
 }
 
+static void AfficherEcranBluetooth(void)
+{
+  ecranCourant = ECRAN_BLUETOOTH;
+
+  BSP_LCD_SelectLayer(0);
+  BSP_LCD_Clear(COULEUR_FOND_BLUETOOTH);
+
+  BSP_LCD_SetFont(&Font24);
+  BSP_LCD_SetTextColor(COULEUR_TITRE_BLUETOOTH);
+  BSP_LCD_SetBackColor(COULEUR_FOND_BLUETOOTH);
+  AfficherTexteCentreZone(0, 34, (uint16_t)BSP_LCD_GetXSize(), "Mode Bluetooth");
+
+  BSP_LCD_SetFont(&Font16);
+  AfficherTexteCentreZone(0, 96, (uint16_t)BSP_LCD_GetXSize(), "Implementation a venir");
+
+  BSP_LCD_SetFont(&Font12);
+  AfficherTexteCentreZone(0, 126, (uint16_t)BSP_LCD_GetXSize(), "Le menu est pret pour ce mode");
+
+  BSP_LCD_SetTextColor(COULEUR_BOUTON_RETOUR);
+  BSP_LCD_FillRect(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR);
+
+  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+  BSP_LCD_DrawRect(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR);
+
+  BSP_LCD_SetFont(&Font12);
+  BSP_LCD_SetTextColor(COULEUR_TEXTE_RETOUR);
+  BSP_LCD_SetBackColor(COULEUR_BOUTON_RETOUR);
+  AfficherTexteCentreZone(BOUTON_RETOUR_X, (uint16_t)(BOUTON_RETOUR_Y + 10U), BOUTON_RETOUR_LARGEUR, "Retour menu");
+
+  BSP_LCD_SelectLayer(1);
+  BSP_LCD_Clear(0x00000000);
+}
+
+static void AfficherSousMenuDames(void)
+{
+  ecranCourant = ECRAN_ACCUEIL;
+  Menu_AfficherSousMenuDames();
+}
+
 static void AfficherEcranAccueil(void)
 {
   ecranCourant = ECRAN_ACCUEIL;
+  Menu_Reinitialiser();
   Menu_Afficher();
+}
+
+static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte)
+{
+  sFONT *policeCourante;
+  uint16_t largeurTexte;
+  uint16_t xTexte;
+
+  policeCourante = BSP_LCD_GetFont();
+  largeurTexte = (uint16_t)(strlen(texte) * policeCourante->Width);
+
+  if (largeurTexte >= largeur)
+  {
+    xTexte = x;
+  }
+  else
+  {
+    xTexte = (uint16_t)(x + ((largeur - largeurTexte) / 2U));
+  }
+
+  BSP_LCD_DisplayStringAt(xTexte, y, (uint8_t *)texte, LEFT_MODE);
+}
+
+static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, uint16_t zoneY, uint16_t largeur, uint16_t hauteur)
+{
+  return (uint8_t)((x >= zoneX) && (x < (zoneX + largeur)) &&
+                   (y >= zoneY) && (y < (zoneY + hauteur)));
 }
 
 /* USER CODE END 0 */
@@ -159,9 +241,17 @@ int main(void)
     {
       if (ecranCourant == ECRAN_ACCUEIL)
       {
-        if (Menu_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == MENU_ACTION_JEU_DAMES)
+        MenuAction actionMenu;
+
+        actionMenu = Menu_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]);
+
+        if (actionMenu == MENU_ACTION_LANCER_DAMES_LOCAL)
         {
           AfficherEcranDames();
+        }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_BLUETOOTH)
+        {
+          AfficherEcranBluetooth();
         }
       }
       else if (ecranCourant == ECRAN_DAMES)
@@ -169,6 +259,15 @@ int main(void)
         if (Dames_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == DAMES_ACTION_QUITTER)
         {
           AfficherEcranAccueil();
+        }
+      }
+      else if (ecranCourant == ECRAN_BLUETOOTH)
+      {
+        if (CoordonneesSontDansZone(etatTactile.touchX[0], etatTactile.touchY[0],
+                                    BOUTON_RETOUR_X, BOUTON_RETOUR_Y,
+                                    BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR) != 0U)
+        {
+          AfficherSousMenuDames();
         }
       }
     }

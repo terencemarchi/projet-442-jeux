@@ -8,17 +8,96 @@
 #define COULEUR_CARTE_BORDURE  ((uint32_t)0xFF7B4F29)
 #define COULEUR_TITRE_ACCUEIL  ((uint32_t)0xFF4F2F1A)
 
+#define COULEUR_BOUTON_RETOUR  ((uint32_t)0xFFD8C3A2)
+
 #define CARTE_JEU_X            120U
 #define CARTE_JEU_Y            86U
 #define CARTE_JEU_LARGEUR      240U
-#define CARTE_JEU_HAUTEUR      90U
+#define CARTE_JEU_HAUTEUR      68U
+
+#define CARTE_MODE_X           100U
+#define CARTE_MODE_LARGEUR     280U
+#define CARTE_MODE_HAUTEUR     54U
+#define CARTE_MODE_LOCAL_Y     78U
+#define CARTE_MODE_BLUETOOTH_Y 144U
+#define BOUTON_RETOUR_X        160U
+#define BOUTON_RETOUR_Y        214U
+#define BOUTON_RETOUR_LARGEUR  160U
+#define BOUTON_RETOUR_HAUTEUR  36U
+
+typedef enum
+{
+  MENU_ECRAN_ACCUEIL = 0,
+  MENU_ECRAN_DAMES_MODE
+} TypeEcranMenu;
+
+static TypeEcranMenu ecranMenuCourant = MENU_ECRAN_ACCUEIL;
 
 static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y,
                                        uint16_t zoneX, uint16_t zoneY,
                                        uint16_t largeur, uint16_t hauteur);
 static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte);
+static void DessinerCarte(uint16_t x, uint16_t y, uint16_t largeur, uint16_t hauteur,
+                          uint32_t couleurFond, const char *titre, const char *sousTitre);
+static void AfficherAccueilPrincipal(void);
+static void AfficherSousMenuDames(void);
+
+void Menu_Reinitialiser(void)
+{
+  ecranMenuCourant = MENU_ECRAN_ACCUEIL;
+}
+
+void Menu_AfficherSousMenuDames(void)
+{
+  ecranMenuCourant = MENU_ECRAN_DAMES_MODE;
+  Menu_Afficher();
+}
 
 void Menu_Afficher(void)
+{
+  if (ecranMenuCourant == MENU_ECRAN_DAMES_MODE)
+  {
+    AfficherSousMenuDames();
+  }
+  else
+  {
+    AfficherAccueilPrincipal();
+  }
+}
+
+MenuAction Menu_GererTouch(uint16_t x, uint16_t y)
+{
+  if (ecranMenuCourant == MENU_ECRAN_ACCUEIL)
+  {
+    if (CoordonneesSontDansZone(x, y, CARTE_JEU_X, CARTE_JEU_Y, CARTE_JEU_LARGEUR, CARTE_JEU_HAUTEUR) != 0U)
+    {
+      ecranMenuCourant = MENU_ECRAN_DAMES_MODE;
+      Menu_Afficher();
+    }
+
+    return MENU_ACTION_AUCUNE;
+  }
+
+  if (CoordonneesSontDansZone(x, y, CARTE_MODE_X, CARTE_MODE_LOCAL_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR) != 0U)
+  {
+    return MENU_ACTION_LANCER_DAMES_LOCAL;
+  }
+
+  if (CoordonneesSontDansZone(x, y, CARTE_MODE_X, CARTE_MODE_BLUETOOTH_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR) != 0U)
+  {
+    return MENU_ACTION_LANCER_DAMES_BLUETOOTH;
+  }
+
+  if (CoordonneesSontDansZone(x, y, BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR) != 0U)
+  {
+    ecranMenuCourant = MENU_ECRAN_ACCUEIL;
+    Menu_Afficher();
+  }
+
+  return MENU_ACTION_AUCUNE;
+}
+
+static void AfficherAccueilPrincipal(void)
 {
   BSP_LCD_SelectLayer(0);
   BSP_LCD_Clear(COULEUR_ACCUEIL_FOND);
@@ -28,33 +107,55 @@ void Menu_Afficher(void)
   BSP_LCD_SetBackColor(COULEUR_ACCUEIL_FOND);
   AfficherTexteCentreZone(0, 24, (uint16_t)BSP_LCD_GetXSize(), "JEUX");
 
-  BSP_LCD_SetTextColor(COULEUR_CARTE_BORDURE);
-  BSP_LCD_FillRect(CARTE_JEU_X, CARTE_JEU_Y, CARTE_JEU_LARGEUR, CARTE_JEU_HAUTEUR);
-
-  BSP_LCD_SetTextColor(COULEUR_CARTE_JEU);
-  BSP_LCD_FillRect((uint16_t)(CARTE_JEU_X + 3U), (uint16_t)(CARTE_JEU_Y + 3U),
-                   (uint16_t)(CARTE_JEU_LARGEUR - 6U), (uint16_t)(CARTE_JEU_HAUTEUR - 6U));
-
-  BSP_LCD_SetFont(&Font20);
-  BSP_LCD_SetTextColor(COULEUR_TITRE_ACCUEIL);
-  BSP_LCD_SetBackColor(COULEUR_CARTE_JEU);
-  AfficherTexteCentreZone(CARTE_JEU_X, (uint16_t)(CARTE_JEU_Y + 18U), CARTE_JEU_LARGEUR, "Jeu de dames");
-
-  BSP_LCD_SetFont(&Font12);
-  AfficherTexteCentreZone(CARTE_JEU_X, (uint16_t)(CARTE_JEU_Y + 52U), CARTE_JEU_LARGEUR, "Toucher pour jouer");
+  DessinerCarte(CARTE_JEU_X, CARTE_JEU_Y, CARTE_JEU_LARGEUR, CARTE_JEU_HAUTEUR,
+                COULEUR_CARTE_JEU, "Jeu de dames", "Choisir un mode");
 
   BSP_LCD_SelectLayer(1);
   BSP_LCD_Clear(0x00000000);
 }
 
-MenuAction Menu_GererTouch(uint16_t x, uint16_t y)
+static void AfficherSousMenuDames(void)
 {
-  if (CoordonneesSontDansZone(x, y, CARTE_JEU_X, CARTE_JEU_Y, CARTE_JEU_LARGEUR, CARTE_JEU_HAUTEUR) != 0U)
-  {
-    return MENU_ACTION_JEU_DAMES;
-  }
+  BSP_LCD_SelectLayer(0);
+  BSP_LCD_Clear(COULEUR_ACCUEIL_FOND);
 
-  return MENU_ACTION_AUCUNE;
+  BSP_LCD_SetFont(&Font24);
+  BSP_LCD_SetTextColor(COULEUR_TITRE_ACCUEIL);
+  BSP_LCD_SetBackColor(COULEUR_ACCUEIL_FOND);
+  AfficherTexteCentreZone(0, 20, (uint16_t)BSP_LCD_GetXSize(), "Jeu de dames");
+
+  DessinerCarte(CARTE_MODE_X, CARTE_MODE_LOCAL_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
+                COULEUR_CARTE_JEU, "1 carte", "Deux joueurs sur le meme ecran");
+  DessinerCarte(CARTE_MODE_X, CARTE_MODE_BLUETOOTH_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
+                COULEUR_CARTE_JEU, "2 cartes Bluetooth", "Une carte par joueur");
+
+  DessinerCarte(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR,
+                COULEUR_BOUTON_RETOUR, "Retour", NULL);
+
+  BSP_LCD_SelectLayer(1);
+  BSP_LCD_Clear(0x00000000);
+}
+
+static void DessinerCarte(uint16_t x, uint16_t y, uint16_t largeur, uint16_t hauteur,
+                          uint32_t couleurFond, const char *titre, const char *sousTitre)
+{
+  BSP_LCD_SetTextColor(COULEUR_CARTE_BORDURE);
+  BSP_LCD_FillRect(x, y, largeur, hauteur);
+
+  BSP_LCD_SetTextColor(couleurFond);
+  BSP_LCD_FillRect((uint16_t)(x + 3U), (uint16_t)(y + 3U),
+                   (uint16_t)(largeur - 6U), (uint16_t)(hauteur - 6U));
+
+  BSP_LCD_SetTextColor(COULEUR_TITRE_ACCUEIL);
+  BSP_LCD_SetBackColor(couleurFond);
+  BSP_LCD_SetFont(&Font16);
+  AfficherTexteCentreZone(x, (uint16_t)(y + 10U), largeur, titre);
+
+  if (sousTitre != NULL)
+  {
+    BSP_LCD_SetFont(&Font12);
+    AfficherTexteCentreZone(x, (uint16_t)(y + 30U), largeur, sousTitre);
+  }
 }
 
 static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y,
