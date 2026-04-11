@@ -34,6 +34,7 @@
 /* USER CODE BEGIN Includes */
 #include "menu.h"
 #include "dames.h"
+#include "test_uart.h"
 #include "stm32746g_discovery_lcd.h"
 #include "stm32746g_discovery_ts.h"
 /* USER CODE END Includes */
@@ -61,27 +62,38 @@ typedef enum
 
 /* USER CODE BEGIN PV */
 static TypeEcran ecranCourant = ECRAN_ACCUEIL;
+static DamesModePartie modePartieDamesCourant = DAMES_MODE_LOCAL;
+static DamesJoueurLocal joueurLocalDamesCourant = DAMES_JOUEUR_LOCAL_BLANC;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-static void AfficherEcranDames(void);
+static void AfficherEcranDames(DamesModePartie modePartie, DamesJoueurLocal joueurLocal);
 static void AfficherEcranAccueil(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void AfficherEcranDames(void)
+static void AfficherEcranDames(DamesModePartie modePartie, DamesJoueurLocal joueurLocal)
 {
+  modePartieDamesCourant = modePartie;
+  joueurLocalDamesCourant = joueurLocal;
   ecranCourant = ECRAN_DAMES;
-  Dames_AfficherNouvellePartie();
+
+  if (modePartieDamesCourant == DAMES_MODE_UART)
+  {
+    TestUart_Initialiser();
+  }
+
+  Dames_AfficherNouvellePartie(modePartieDamesCourant, joueurLocalDamesCourant);
 }
 
 static void AfficherEcranAccueil(void)
 {
   ecranCourant = ECRAN_ACCUEIL;
+  Menu_Reinitialiser();
   Menu_Afficher();
 }
 
@@ -94,7 +106,11 @@ static void AfficherEcranAccueil(void)
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
+/* USER CODE BEGIN 1 */
+  CoupDames coupLocal;
+  CoupDames coupRecu;
+  char messageCoup[TAILLE_MESSAGE_COUP_MAX];
+  char messageRecu[TAILLE_MESSAGE_COUP_MAX];
   TS_StateTypeDef etatTactile = {0};
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
@@ -136,6 +152,7 @@ int main(void)
   MX_DAC_Init();
   MX_UART7_Init();
   /* USER CODE BEGIN 2 */
+  TestUart_Initialiser();
   BSP_LCD_Init();
   BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
   BSP_LCD_LayerDefaultInit(1, LCD_FB_START_ADDRESS+ BSP_LCD_GetXSize()*BSP_LCD_GetYSize()*4);
@@ -159,9 +176,21 @@ int main(void)
     {
       if (ecranCourant == ECRAN_ACCUEIL)
       {
-        if (Menu_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == MENU_ACTION_JEU_DAMES)
+        MenuAction actionMenu;
+
+        actionMenu = Menu_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]);
+
+        if (actionMenu == MENU_ACTION_LANCER_DAMES_LOCAL)
         {
-          AfficherEcranDames();
+          AfficherEcranDames(DAMES_MODE_LOCAL, DAMES_JOUEUR_LOCAL_BLANC);
+        }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_UART_BLANC)
+        {
+          AfficherEcranDames(DAMES_MODE_UART, DAMES_JOUEUR_LOCAL_BLANC);
+        }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_UART_NOIR)
+        {
+          AfficherEcranDames(DAMES_MODE_UART, DAMES_JOUEUR_LOCAL_NOIR);
         }
       }
       else if (ecranCourant == ECRAN_DAMES)
@@ -169,6 +198,32 @@ int main(void)
         if (Dames_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == DAMES_ACTION_QUITTER)
         {
           AfficherEcranAccueil();
+        }
+      }
+    }
+
+    if (ecranCourant == ECRAN_DAMES)
+    {
+      if (modePartieDamesCourant == DAMES_MODE_UART)
+      {
+        if ((Dames_CoupLocalEstPret() != 0U) &&
+            (Dames_RecupererDernierCoupLocal(&coupLocal) != 0U) &&
+            (Dames_ConvertirCoupEnTexte(&coupLocal, messageCoup, sizeof(messageCoup)) != 0U))
+        {
+          if (TestUart_EnvoyerMessage(messageCoup) != 0U)
+          {
+            Dames_AcquitterDernierCoupLocal();
+          }
+        }
+
+        if ((TestUart_MessageRecuEstPret() != 0U) &&
+            (TestUart_RecupererDernierMessageRecu(messageRecu, sizeof(messageRecu)) != 0U))
+        {
+          if ((Dames_ConvertirTexteEnCoup(messageRecu, &coupRecu) != 0U) &&
+              (Dames_AppliquerCoupRecu(&coupRecu) != 0U))
+          {
+            TestUart_AcquitterDernierMessageRecu();
+          }
         }
       }
     }
