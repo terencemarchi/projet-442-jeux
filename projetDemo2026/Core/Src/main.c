@@ -185,7 +185,9 @@ static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, u
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
+/* USER CODE BEGIN 1 */
+  CoupDames coupLocal;
+  char messageCoup[TAILLE_MESSAGE_COUP_MAX];
   TS_StateTypeDef etatTactile = {0};
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
@@ -296,6 +298,18 @@ int main(void)
     if (ecranCourant == ECRAN_TEST_UART)
     {
       TestUart_MettreAJour();
+    }
+    else if (ecranCourant == ECRAN_DAMES)
+    {
+      if ((Dames_CoupLocalEstPret() != 0U) &&
+          (Dames_RecupererDernierCoupLocal(&coupLocal) != 0U) &&
+          (Dames_ConvertirCoupEnTexte(&coupLocal, messageCoup, sizeof(messageCoup)) != 0U))
+      {
+        if (TestUart_EnvoyerMessage(messageCoup) != 0U)
+        {
+          Dames_AcquitterDernierCoupLocal();
+        }
+      }
     }
 
     tactileActifPrecedent = (etatTactile.touchDetected != 0U) ? 1U : 0U;

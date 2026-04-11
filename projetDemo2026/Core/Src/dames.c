@@ -1,6 +1,7 @@
 #include "dames.h"
 
 #include "stdio.h"
+#include "stdlib.h"
 #include "string.h"
 #include "stm32746g_discovery_lcd.h"
 
@@ -48,12 +49,6 @@ typedef enum
 
 typedef struct
 {
-  uint8_t ligne;
-  uint8_t colonne;
-} PositionCase;
-
-typedef struct
-{
   TypeCase plateau[TAILLE_PLATEAU][TAILLE_PLATEAU];
   uint8_t piecesCaptureesEnCours[TAILLE_PLATEAU][TAILLE_PLATEAU];
   TypeJoueur joueurCourant;
@@ -61,11 +56,19 @@ typedef struct
   uint8_t selectionActive;
   uint8_t priseMultipleActive;
   uint8_t partieTerminee;
+  uint8_t coupLocalPret;
+  uint16_t prochainNumeroCoup;
   PositionCase caseSelectionnee;
+  CoupDames coupEnCours;
+  CoupDames dernierCoupLocal;
 } EtatPartie;
 
 static EtatPartie etatPartie;
 
+static void InitialiserEtatCoups(EtatPartie *etat);
+static void DemarrerCoupLocalSiNecessaire(EtatPartie *etat, PositionCase depart);
+static void AjouterEtapeCoupLocal(EtatPartie *etat, PositionCase arrivee);
+static void FinaliserCoupLocal(EtatPartie *etat);
 static void InitialiserPlateau(EtatPartie *etat);
 static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
@@ -113,6 +116,177 @@ static void DessinerBoutonQuitter(void);
 static void DessinerInfosJeu(const EtatPartie *etat);
 static void DessinerElementsJeu(const EtatPartie *etat);
 
+void Dames_ReinitialiserCoup(CoupDames *coup)
+{
+  memset(coup, 0, sizeof(*coup));
+}
+
+void Dames_InitialiserCoup(CoupDames *coup, uint16_t numeroCoup, PositionCase depart)
+{
+  Dames_ReinitialiserCoup(coup);
+  coup->numeroCoup = numeroCoup;
+  coup->nbEtapes = 1U;
+  coup->etapes[0] = depart;
+}
+
+uint8_t Dames_AjouterEtapeCoup(CoupDames *coup, PositionCase etape)
+{
+  if (coup->nbEtapes >= NB_ETAPES_MAX_COUP)
+  {
+    return 0U;
+  }
+
+  coup->etapes[coup->nbEtapes] = etape;
+  coup->nbEtapes++;
+  return 1U;
+}
+
+uint8_t Dames_ConvertirCoupEnTexte(const CoupDames *coup, char *message, uint16_t tailleMessage)
+{
+  int longueurEcrite;
+  uint16_t positionCourante;
+  uint32_t indexEtape;
+
+  if ((message == NULL) || (tailleMessage == 0U) || (coup->nbEtapes < 2U))
+  {
+    return 0U;
+  }
+
+  longueurEcrite = snprintf(message, tailleMessage, "COUP;%u;%u;",
+                            (unsigned int)coup->numeroCoup,
+                            (unsigned int)coup->nbEtapes);
+  if ((longueurEcrite < 0) || ((uint16_t)longueurEcrite >= tailleMessage))
+  {
+    return 0U;
+  }
+
+  positionCourante = (uint16_t)longueurEcrite;
+
+  for (indexEtape = 0; indexEtape < coup->nbEtapes; indexEtape++)
+  {
+    longueurEcrite = snprintf(&message[positionCourante], (uint16_t)(tailleMessage - positionCourante),
+                              "%u,%u;",
+                              (unsigned int)coup->etapes[indexEtape].ligne,
+                              (unsigned int)coup->etapes[indexEtape].colonne);
+    if ((longueurEcrite < 0) || ((uint16_t)longueurEcrite >= (uint16_t)(tailleMessage - positionCourante)))
+    {
+      return 0U;
+    }
+
+    positionCourante = (uint16_t)(positionCourante + (uint16_t)longueurEcrite);
+  }
+
+  if ((positionCourante + 1U) >= tailleMessage)
+  {
+    return 0U;
+  }
+
+  message[positionCourante] = '\n';
+  message[positionCourante + 1U] = '\0';
+  return 1U;
+}
+
+uint8_t Dames_ConvertirTexteEnCoup(const char *message, CoupDames *coup)
+{
+  char copieMessage[TAILLE_MESSAGE_COUP_MAX];
+  char *jeton;
+  char *contexte;
+  char *separateurVirgule;
+  uint32_t indexEtape;
+  unsigned long numeroCoup;
+  unsigned long nbEtapes;
+
+  if ((message == NULL) || (coup == NULL) || (strlen(message) >= sizeof(copieMessage)))
+  {
+    return 0U;
+  }
+
+  strncpy(copieMessage, message, sizeof(copieMessage) - 1U);
+  copieMessage[sizeof(copieMessage) - 1U] = '\0';
+
+  jeton = strtok_r(copieMessage, ";\n\r", &contexte);
+  if ((jeton == NULL) || (strcmp(jeton, "COUP") != 0))
+  {
+    return 0U;
+  }
+
+  jeton = strtok_r(NULL, ";\n\r", &contexte);
+  if (jeton == NULL)
+  {
+    return 0U;
+  }
+  numeroCoup = strtoul(jeton, NULL, 10);
+
+  jeton = strtok_r(NULL, ";\n\r", &contexte);
+  if (jeton == NULL)
+  {
+    return 0U;
+  }
+  nbEtapes = strtoul(jeton, NULL, 10);
+
+  if ((nbEtapes < 2UL) || (nbEtapes > NB_ETAPES_MAX_COUP))
+  {
+    return 0U;
+  }
+
+  Dames_ReinitialiserCoup(coup);
+  coup->numeroCoup = (uint16_t)numeroCoup;
+  coup->nbEtapes = (uint8_t)nbEtapes;
+
+  for (indexEtape = 0; indexEtape < coup->nbEtapes; indexEtape++)
+  {
+    unsigned long ligne;
+    unsigned long colonne;
+
+    jeton = strtok_r(NULL, ";\n\r", &contexte);
+    if (jeton == NULL)
+    {
+      return 0U;
+    }
+
+    separateurVirgule = strchr(jeton, ',');
+    if (separateurVirgule == NULL)
+    {
+      return 0U;
+    }
+
+    *separateurVirgule = '\0';
+    ligne = strtoul(jeton, NULL, 10);
+    colonne = strtoul(separateurVirgule + 1, NULL, 10);
+
+    if ((ligne >= TAILLE_PLATEAU) || (colonne >= TAILLE_PLATEAU))
+    {
+      return 0U;
+    }
+
+    coup->etapes[indexEtape].ligne = (uint8_t)ligne;
+    coup->etapes[indexEtape].colonne = (uint8_t)colonne;
+  }
+
+  return 1U;
+}
+
+uint8_t Dames_CoupLocalEstPret(void)
+{
+  return etatPartie.coupLocalPret;
+}
+
+uint8_t Dames_RecupererDernierCoupLocal(CoupDames *coup)
+{
+  if ((coup == NULL) || (etatPartie.coupLocalPret == 0U))
+  {
+    return 0U;
+  }
+
+  *coup = etatPartie.dernierCoupLocal;
+  return 1U;
+}
+
+void Dames_AcquitterDernierCoupLocal(void)
+{
+  etatPartie.coupLocalPret = 0U;
+}
+
 void Dames_AfficherNouvellePartie(void)
 {
   InitialiserPartie(&etatPartie);
@@ -156,7 +330,9 @@ DamesAction Dames_GererTouch(uint16_t x, uint16_t y)
     {
       if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
       {
+        DemarrerCoupLocalSiNecessaire(&etatPartie, caseDepart);
         EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
+        AjouterEtapeCoupLocal(&etatPartie, caseTouchee);
         SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
 
         if (PiecePeutCapturerDepuis(&etatPartie, caseTouchee) != 0U)
@@ -180,7 +356,9 @@ DamesAction Dames_GererTouch(uint16_t x, uint16_t y)
     }
     else if (PriseRespecteLeMaximum(&etatPartie, caseDepart, caseTouchee, &caseCapturee) != 0U)
     {
+      DemarrerCoupLocalSiNecessaire(&etatPartie, caseDepart);
       EffectuerPriseSimple(&etatPartie, caseDepart, caseTouchee, caseCapturee);
+      AjouterEtapeCoupLocal(&etatPartie, caseTouchee);
       SelectionnerCase(&etatPartie, caseTouchee.ligne, caseTouchee.colonne);
 
       if (PiecePeutCapturerDepuis(&etatPartie, caseTouchee) != 0U)
@@ -195,13 +373,57 @@ DamesAction Dames_GererTouch(uint16_t x, uint16_t y)
     else if ((priseObligatoire == 0U) &&
              (DeplacementSimpleEstValide(&etatPartie, caseDepart, caseTouchee) != 0U))
     {
+      DemarrerCoupLocalSiNecessaire(&etatPartie, caseDepart);
       DeplacerPiece(&etatPartie, caseDepart, caseTouchee);
+      AjouterEtapeCoupLocal(&etatPartie, caseTouchee);
       FinaliserTourSansCapture(&etatPartie, caseTouchee);
     }
   }
 
   DessinerElementsJeu(&etatPartie);
   return DAMES_ACTION_AUCUNE;
+}
+
+static void InitialiserEtatCoups(EtatPartie *etat)
+{
+  etat->coupLocalPret = 0U;
+  etat->prochainNumeroCoup = 1U;
+  Dames_ReinitialiserCoup(&etat->coupEnCours);
+  Dames_ReinitialiserCoup(&etat->dernierCoupLocal);
+}
+
+static void DemarrerCoupLocalSiNecessaire(EtatPartie *etat, PositionCase depart)
+{
+  if (etat->coupEnCours.nbEtapes != 0U)
+  {
+    return;
+  }
+
+  Dames_InitialiserCoup(&etat->coupEnCours, etat->prochainNumeroCoup, depart);
+}
+
+static void AjouterEtapeCoupLocal(EtatPartie *etat, PositionCase arrivee)
+{
+  if (etat->coupEnCours.nbEtapes == 0U)
+  {
+    return;
+  }
+
+  (void)Dames_AjouterEtapeCoup(&etat->coupEnCours, arrivee);
+}
+
+static void FinaliserCoupLocal(EtatPartie *etat)
+{
+  if (etat->coupEnCours.nbEtapes < 2U)
+  {
+    Dames_ReinitialiserCoup(&etat->coupEnCours);
+    return;
+  }
+
+  etat->dernierCoupLocal = etat->coupEnCours;
+  etat->coupLocalPret = 1U;
+  etat->prochainNumeroCoup++;
+  Dames_ReinitialiserCoup(&etat->coupEnCours);
 }
 
 static void InitialiserPlateau(EtatPartie *etat)
@@ -251,6 +473,7 @@ static void InitialiserPartie(EtatPartie *etat)
   InitialiserPlateau(etat);
   PlacerPionsInitiaux(etat);
   ReinitialiserCapturesEnCours(etat);
+  InitialiserEtatCoups(etat);
 
   etat->joueurCourant = JOUEUR_BLANC;
   etat->gagnant = JOUEUR_BLANC;
@@ -887,6 +1110,7 @@ static void FinaliserTourApresCapture(EtatPartie *etat, PositionCase arrivee)
 {
   RetirerPiecesCaptureesEnCours(etat);
   PromouvoirPionSiNecessaire(etat, arrivee);
+  FinaliserCoupLocal(etat);
   DeselectionnerCase(etat);
   ChangerJoueurCourant(etat);
   ReinitialiserCapturesEnCours(etat);
@@ -896,6 +1120,7 @@ static void FinaliserTourApresCapture(EtatPartie *etat, PositionCase arrivee)
 static void FinaliserTourSansCapture(EtatPartie *etat, PositionCase arrivee)
 {
   PromouvoirPionSiNecessaire(etat, arrivee);
+  FinaliserCoupLocal(etat);
   DeselectionnerCase(etat);
   ChangerJoueurCourant(etat);
   ReinitialiserCapturesEnCours(etat);

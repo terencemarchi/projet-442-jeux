@@ -28,7 +28,7 @@
 
 #define PERIODE_EMISSION_MS         1000U
 #define TAILLE_MESSAGE_TEST         5U
-#define TAILLE_BUFFER_RECEPTION     32U
+#define TAILLE_BUFFER_RECEPTION     160U
 
 typedef enum
 {
@@ -125,6 +125,43 @@ void TestUart_MettreAJour(void)
   }
 }
 
+uint8_t TestUart_EnvoyerMessage(const char *message)
+{
+  uint16_t longueurMessage;
+
+  if (message == NULL)
+  {
+    return 0U;
+  }
+
+  longueurMessage = (uint16_t)strlen(message);
+  if (longueurMessage == 0U)
+  {
+    return 0U;
+  }
+
+  if (HAL_UART_Transmit(&huart7, (uint8_t *)message, longueurMessage, 100U) != HAL_OK)
+  {
+    return 0U;
+  }
+
+  etatTestUart.nbMessagesEmis++;
+  if (longueurMessage >= sizeof(etatTestUart.dernierMessage))
+  {
+    longueurMessage = (uint16_t)(sizeof(etatTestUart.dernierMessage) - 1U);
+  }
+
+  strncpy(etatTestUart.dernierMessage, message, longueurMessage);
+  etatTestUart.dernierMessage[longueurMessage] = '\0';
+
+  if (etatTestUart.ecranCourant == ECRAN_TEST_UART_EMETTEUR)
+  {
+    AfficherEcranEmetteur();
+  }
+
+  return 1U;
+}
+
 static void AfficherChoixRole(void)
 {
   BSP_LCD_SelectLayer(0);
@@ -159,12 +196,12 @@ static void AfficherEcranEmetteur(void)
 
   BSP_LCD_SetFont(&Font16);
   BSP_LCD_SetTextColor(COULEUR_TEXTE_INFO);
-  BSP_LCD_DisplayStringAt(56U, 94U, (uint8_t *)"Message envoye :", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(56U, 94U, (uint8_t *)"Dernier message :", LEFT_MODE);
   BSP_LCD_DisplayStringAt(56U, 126U, (uint8_t *)"Nombre d'envois :", LEFT_MODE);
   BSP_LCD_DisplayStringAt(56U, 158U, (uint8_t *)"Liaison : UART7", LEFT_MODE);
 
   BSP_LCD_SetTextColor(COULEUR_STATUT_OK);
-  BSP_LCD_DisplayStringAt(260U, 94U, (uint8_t *)"TEST", LEFT_MODE);
+  BSP_LCD_DisplayStringAt(220U, 94U, (uint8_t *)etatTestUart.dernierMessage, LEFT_MODE);
   snprintf(texte, sizeof(texte), "%lu", (unsigned long)etatTestUart.nbMessagesEmis);
   BSP_LCD_DisplayStringAt(260U, 126U, (uint8_t *)texte, LEFT_MODE);
 
@@ -317,7 +354,7 @@ static void TraiterOctetRecu(uint8_t octetRecu)
     etatTestUart.bufferReception[etatTestUart.indexReception] = '\0';
     strncpy(etatTestUart.dernierMessage, etatTestUart.bufferReception, sizeof(etatTestUart.dernierMessage) - 1U);
     etatTestUart.nbMessagesRecus++;
-    etatTestUart.messageValide = (uint8_t)(strcmp(etatTestUart.bufferReception, "TEST") == 0);
+    etatTestUart.messageValide = (uint8_t)(strncmp(etatTestUart.bufferReception, "COUP;", 5U) == 0U);
     etatTestUart.indexReception = 0U;
     memset(etatTestUart.bufferReception, 0, sizeof(etatTestUart.bufferReception));
     AfficherEcranRecepteur();
