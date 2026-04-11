@@ -47,12 +47,6 @@ typedef enum
   ECRAN_DAMES
 } TypeEcran;
 
-typedef enum
-{
-  MODE_PARTIE_DAMES_LOCAL = 0,
-  MODE_PARTIE_DAMES_UART
-} TypeModePartieDames;
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -68,30 +62,32 @@ typedef enum
 
 /* USER CODE BEGIN PV */
 static TypeEcran ecranCourant = ECRAN_ACCUEIL;
-static TypeModePartieDames modePartieDamesCourant = MODE_PARTIE_DAMES_LOCAL;
+static DamesModePartie modePartieDamesCourant = DAMES_MODE_LOCAL;
+static DamesJoueurLocal joueurLocalDamesCourant = DAMES_JOUEUR_LOCAL_BLANC;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-static void AfficherEcranDames(TypeModePartieDames modePartie);
+static void AfficherEcranDames(DamesModePartie modePartie, DamesJoueurLocal joueurLocal);
 static void AfficherEcranAccueil(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void AfficherEcranDames(TypeModePartieDames modePartie)
+static void AfficherEcranDames(DamesModePartie modePartie, DamesJoueurLocal joueurLocal)
 {
   modePartieDamesCourant = modePartie;
+  joueurLocalDamesCourant = joueurLocal;
   ecranCourant = ECRAN_DAMES;
 
-  if (modePartieDamesCourant == MODE_PARTIE_DAMES_UART)
+  if (modePartieDamesCourant == DAMES_MODE_UART)
   {
     TestUart_Initialiser();
   }
 
-  Dames_AfficherNouvellePartie();
+  Dames_AfficherNouvellePartie(modePartieDamesCourant, joueurLocalDamesCourant);
 }
 
 static void AfficherEcranAccueil(void)
@@ -186,11 +182,15 @@ int main(void)
 
         if (actionMenu == MENU_ACTION_LANCER_DAMES_LOCAL)
         {
-          AfficherEcranDames(MODE_PARTIE_DAMES_LOCAL);
+          AfficherEcranDames(DAMES_MODE_LOCAL, DAMES_JOUEUR_LOCAL_BLANC);
         }
-        else if (actionMenu == MENU_ACTION_LANCER_DAMES_UART)
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_UART_BLANC)
         {
-          AfficherEcranDames(MODE_PARTIE_DAMES_UART);
+          AfficherEcranDames(DAMES_MODE_UART, DAMES_JOUEUR_LOCAL_BLANC);
+        }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_UART_NOIR)
+        {
+          AfficherEcranDames(DAMES_MODE_UART, DAMES_JOUEUR_LOCAL_NOIR);
         }
       }
       else if (ecranCourant == ECRAN_DAMES)
@@ -204,7 +204,7 @@ int main(void)
 
     if (ecranCourant == ECRAN_DAMES)
     {
-      if (modePartieDamesCourant == MODE_PARTIE_DAMES_UART)
+      if (modePartieDamesCourant == DAMES_MODE_UART)
       {
         if ((Dames_CoupLocalEstPret() != 0U) &&
             (Dames_RecupererDernierCoupLocal(&coupLocal) != 0U) &&

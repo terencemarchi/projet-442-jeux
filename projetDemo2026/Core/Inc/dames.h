@@ -21,6 +21,18 @@ typedef struct
 
 typedef enum
 {
+  DAMES_MODE_LOCAL = 0,
+  DAMES_MODE_UART
+} DamesModePartie;
+
+typedef enum
+{
+  DAMES_JOUEUR_LOCAL_BLANC = 0,
+  DAMES_JOUEUR_LOCAL_NOIR
+} DamesJoueurLocal;
+
+typedef enum
+{
   DAMES_ACTION_AUCUNE = 0,
   DAMES_ACTION_QUITTER
 } DamesAction;
@@ -35,7 +47,7 @@ uint8_t Dames_RecupererDernierCoupLocal(CoupDames *coup);
 void Dames_AcquitterDernierCoupLocal(void);
 uint8_t Dames_AppliquerCoupRecu(const CoupDames *coup);
 
-void Dames_AfficherNouvellePartie(void);
+void Dames_AfficherNouvellePartie(DamesModePartie modePartie, DamesJoueurLocal joueurLocal);
 DamesAction Dames_GererTouch(uint16_t x, uint16_t y);
 
 #endif /* DAMES_H */

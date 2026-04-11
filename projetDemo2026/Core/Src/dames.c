@@ -51,7 +51,9 @@ typedef struct
 {
   TypeCase plateau[TAILLE_PLATEAU][TAILLE_PLATEAU];
   uint8_t piecesCaptureesEnCours[TAILLE_PLATEAU][TAILLE_PLATEAU];
+  DamesModePartie modePartie;
   TypeJoueur joueurCourant;
+  TypeJoueur joueurLocal;
   TypeJoueur gagnant;
   uint8_t selectionActive;
   uint8_t priseMultipleActive;
@@ -76,6 +78,7 @@ static void InitialiserPartie(EtatPartie *etat);
 static void ReinitialiserCapturesEnCours(EtatPartie *etat);
 static uint8_t CoordonneesSontDansPlateau(int32_t ligne, int32_t colonne);
 static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, uint16_t zoneY, uint16_t largeur, uint16_t hauteur);
+static uint8_t JoueurLocalPeutJouer(const EtatPartie *etat);
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceDuJoueur(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
 static uint8_t CaseContientPieceAdverse(const EtatPartie *etat, uint8_t ligne, uint8_t colonne);
@@ -330,9 +333,11 @@ uint8_t Dames_AppliquerCoupRecu(const CoupDames *coup)
   return 1U;
 }
 
-void Dames_AfficherNouvellePartie(void)
+void Dames_AfficherNouvellePartie(DamesModePartie modePartie, DamesJoueurLocal joueurLocal)
 {
   InitialiserPartie(&etatPartie);
+  etatPartie.modePartie = modePartie;
+  etatPartie.joueurLocal = (joueurLocal == DAMES_JOUEUR_LOCAL_NOIR) ? JOUEUR_NOIR : JOUEUR_BLANC;
   DessinerPlateau();
   DessinerElementsJeu(&etatPartie);
 }
@@ -352,6 +357,11 @@ DamesAction Dames_GererTouch(uint16_t x, uint16_t y)
 
   if ((etatPartie.partieTerminee != 0U) ||
       (ConvertirCoordonneesEnCase(x, y, &caseTouchee) == 0U))
+  {
+    return DAMES_ACTION_AUCUNE;
+  }
+
+  if (JoueurLocalPeutJouer(&etatPartie) == 0U)
   {
     return DAMES_ACTION_AUCUNE;
   }
@@ -539,7 +549,9 @@ static void InitialiserPartie(EtatPartie *etat)
   ReinitialiserCapturesEnCours(etat);
   InitialiserEtatCoups(etat);
 
+  etat->modePartie = DAMES_MODE_LOCAL;
   etat->joueurCourant = JOUEUR_BLANC;
+  etat->joueurLocal = JOUEUR_BLANC;
   etat->gagnant = JOUEUR_BLANC;
   etat->selectionActive = 0U;
   etat->priseMultipleActive = 0U;
@@ -572,6 +584,16 @@ static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, u
 {
   return (uint8_t)((x >= zoneX) && (x < (zoneX + largeur)) &&
                    (y >= zoneY) && (y < (zoneY + hauteur)));
+}
+
+static uint8_t JoueurLocalPeutJouer(const EtatPartie *etat)
+{
+  if (etat->modePartie == DAMES_MODE_LOCAL)
+  {
+    return 1U;
+  }
+
+  return (uint8_t)(etat->joueurCourant == etat->joueurLocal);
 }
 
 static uint8_t CaseEstJouable(uint8_t ligne, uint8_t colonne)
@@ -1367,6 +1389,8 @@ static void DessinerBoutonQuitter(void)
 static void DessinerInfosJeu(const EtatPartie *etat)
 {
   char texte[40];
+  char texteJoueurLocal[40];
+  char texteEtat[40];
 
   BSP_LCD_SetFont(&Font12);
   BSP_LCD_SetTextColor(COULEUR_INFOS_JEU);
@@ -1382,6 +1406,17 @@ static void DessinerInfosJeu(const EtatPartie *etat)
   }
 
   BSP_LCD_DisplayStringAt(280, 24, (uint8_t *)texte, LEFT_MODE);
+
+  if (etat->modePartie == DAMES_MODE_UART)
+  {
+    snprintf(texteJoueurLocal, sizeof(texteJoueurLocal), "Vous : %s",
+             etat->joueurLocal == JOUEUR_BLANC ? "blanc" : "noir");
+    BSP_LCD_DisplayStringAt(280, 42, (uint8_t *)texteJoueurLocal, LEFT_MODE);
+
+    snprintf(texteEtat, sizeof(texteEtat), "Etat : %s",
+             JoueurLocalPeutJouer(etat) != 0U ? "a vous" : "attente");
+    BSP_LCD_DisplayStringAt(280, 60, (uint8_t *)texteEtat, LEFT_MODE);
+  }
 }
 
 static void DessinerElementsJeu(const EtatPartie *etat)
