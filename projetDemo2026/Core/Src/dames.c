@@ -69,6 +69,7 @@ static void InitialiserEtatCoups(EtatPartie *etat);
 static void DemarrerCoupLocalSiNecessaire(EtatPartie *etat, PositionCase depart);
 static void AjouterEtapeCoupLocal(EtatPartie *etat, PositionCase arrivee);
 static void FinaliserCoupLocal(EtatPartie *etat);
+static uint8_t AppliquerDeplacementOuPrise(EtatPartie *etat, PositionCase depart, PositionCase arrivee, uint8_t *priseEffectuee);
 static void InitialiserPlateau(EtatPartie *etat);
 static void PlacerPionsInitiaux(EtatPartie *etat);
 static void InitialiserPartie(EtatPartie *etat);
@@ -287,6 +288,48 @@ void Dames_AcquitterDernierCoupLocal(void)
   etatPartie.coupLocalPret = 0U;
 }
 
+uint8_t Dames_AppliquerCoupRecu(const CoupDames *coup)
+{
+  uint8_t indexEtape;
+  uint8_t priseEffectuee = 0U;
+
+  if ((coup == NULL) ||
+      (coup->nbEtapes < 2U) ||
+      (coup->numeroCoup != etatPartie.prochainNumeroCoup) ||
+      (etatPartie.partieTerminee != 0U))
+  {
+    return 0U;
+  }
+
+  DeselectionnerCase(&etatPartie);
+  ReinitialiserCapturesEnCours(&etatPartie);
+  Dames_ReinitialiserCoup(&etatPartie.coupEnCours);
+
+  for (indexEtape = 0U; indexEtape < (uint8_t)(coup->nbEtapes - 1U); indexEtape++)
+  {
+    if (AppliquerDeplacementOuPrise(&etatPartie, coup->etapes[indexEtape], coup->etapes[indexEtape + 1U], &priseEffectuee) == 0U)
+    {
+      ReinitialiserCapturesEnCours(&etatPartie);
+      return 0U;
+    }
+  }
+
+  if (priseEffectuee != 0U)
+  {
+    FinaliserTourApresCapture(&etatPartie, coup->etapes[coup->nbEtapes - 1U]);
+  }
+  else
+  {
+    FinaliserTourSansCapture(&etatPartie, coup->etapes[coup->nbEtapes - 1U]);
+  }
+
+  etatPartie.prochainNumeroCoup = (uint16_t)(coup->numeroCoup + 1U);
+  etatPartie.coupLocalPret = 0U;
+  Dames_ReinitialiserCoup(&etatPartie.coupEnCours);
+  DessinerElementsJeu(&etatPartie);
+  return 1U;
+}
+
 void Dames_AfficherNouvellePartie(void)
 {
   InitialiserPartie(&etatPartie);
@@ -424,6 +467,27 @@ static void FinaliserCoupLocal(EtatPartie *etat)
   etat->coupLocalPret = 1U;
   etat->prochainNumeroCoup++;
   Dames_ReinitialiserCoup(&etat->coupEnCours);
+}
+
+static uint8_t AppliquerDeplacementOuPrise(EtatPartie *etat, PositionCase depart, PositionCase arrivee, uint8_t *priseEffectuee)
+{
+  PositionCase caseCapturee = {0};
+
+  if (PriseSimpleEstValide(etat, depart, arrivee, &caseCapturee) != 0U)
+  {
+    EffectuerPriseSimple(etat, depart, arrivee, caseCapturee);
+    *priseEffectuee = 1U;
+    return 1U;
+  }
+
+  if ((*priseEffectuee == 0U) &&
+      (DeplacementSimpleEstValide(etat, depart, arrivee) != 0U))
+  {
+    DeplacerPiece(etat, depart, arrivee);
+    return 1U;
+  }
+
+  return 0U;
 }
 
 static void InitialiserPlateau(EtatPartie *etat)

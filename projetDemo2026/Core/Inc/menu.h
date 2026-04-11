@@ -7,12 +7,10 @@ typedef enum
 {
   MENU_ACTION_AUCUNE = 0,
   MENU_ACTION_LANCER_DAMES_LOCAL,
-  MENU_ACTION_LANCER_DAMES_BLUETOOTH,
-  MENU_ACTION_LANCER_TEST_UART
+  MENU_ACTION_LANCER_DAMES_UART
 } MenuAction;
 
 void Menu_Reinitialiser(void);
-void Menu_AfficherSousMenuDames(void);
 void Menu_Afficher(void);
 MenuAction Menu_GererTouch(uint16_t x, uint16_t y);
 

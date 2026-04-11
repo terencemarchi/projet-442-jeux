@@ -3,16 +3,10 @@
 
 #include "stdint.h"
 
-typedef enum
-{
-  TEST_UART_ACTION_AUCUNE = 0,
-  TEST_UART_ACTION_QUITTER
-} TestUartAction;
-
 void TestUart_Initialiser(void);
-void TestUart_Afficher(void);
-TestUartAction TestUart_GererTouch(uint16_t x, uint16_t y);
-void TestUart_MettreAJour(void);
 uint8_t TestUart_EnvoyerMessage(const char *message);
+uint8_t TestUart_MessageRecuEstPret(void);
+uint8_t TestUart_RecupererDernierMessageRecu(char *message, uint16_t tailleMessage);
+void TestUart_AcquitterDernierMessageRecu(void);
 
 #endif /* TEST_UART_H */

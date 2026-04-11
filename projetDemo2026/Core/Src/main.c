@@ -32,7 +32,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "string.h"
 #include "menu.h"
 #include "dames.h"
 #include "test_uart.h"
@@ -45,24 +44,19 @@
 typedef enum
 {
   ECRAN_ACCUEIL = 0,
-  ECRAN_DAMES,
-  ECRAN_BLUETOOTH,
-  ECRAN_TEST_UART
+  ECRAN_DAMES
 } TypeEcran;
+
+typedef enum
+{
+  MODE_PARTIE_DAMES_LOCAL = 0,
+  MODE_PARTIE_DAMES_UART
+} TypeModePartieDames;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define COULEUR_FOND_BLUETOOTH    ((uint32_t)0xFFF8F3EA)
-#define COULEUR_TITRE_BLUETOOTH   ((uint32_t)0xFF4F2F1A)
-#define COULEUR_BOUTON_RETOUR     ((uint32_t)0xFFD9534F)
-#define COULEUR_TEXTE_RETOUR      LCD_COLOR_WHITE
-
-#define BOUTON_RETOUR_X           160U
-#define BOUTON_RETOUR_Y           206U
-#define BOUTON_RETOUR_LARGEUR     160U
-#define BOUTON_RETOUR_HAUTEUR     36U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -74,72 +68,30 @@ typedef enum
 
 /* USER CODE BEGIN PV */
 static TypeEcran ecranCourant = ECRAN_ACCUEIL;
+static TypeModePartieDames modePartieDamesCourant = MODE_PARTIE_DAMES_LOCAL;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-static void AfficherEcranDames(void);
-static void AfficherEcranBluetooth(void);
-static void AfficherEcranTestUart(void);
-static void AfficherSousMenuDames(void);
+static void AfficherEcranDames(TypeModePartieDames modePartie);
 static void AfficherEcranAccueil(void);
-static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte);
-static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, uint16_t zoneY, uint16_t largeur, uint16_t hauteur);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void AfficherEcranDames(void)
+static void AfficherEcranDames(TypeModePartieDames modePartie)
 {
+  modePartieDamesCourant = modePartie;
   ecranCourant = ECRAN_DAMES;
+
+  if (modePartieDamesCourant == MODE_PARTIE_DAMES_UART)
+  {
+    TestUart_Initialiser();
+  }
+
   Dames_AfficherNouvellePartie();
-}
-
-static void AfficherEcranBluetooth(void)
-{
-  ecranCourant = ECRAN_BLUETOOTH;
-
-  BSP_LCD_SelectLayer(0);
-  BSP_LCD_Clear(COULEUR_FOND_BLUETOOTH);
-
-  BSP_LCD_SetFont(&Font24);
-  BSP_LCD_SetTextColor(COULEUR_TITRE_BLUETOOTH);
-  BSP_LCD_SetBackColor(COULEUR_FOND_BLUETOOTH);
-  AfficherTexteCentreZone(0, 34, (uint16_t)BSP_LCD_GetXSize(), "Mode Bluetooth");
-
-  BSP_LCD_SetFont(&Font16);
-  AfficherTexteCentreZone(0, 96, (uint16_t)BSP_LCD_GetXSize(), "Implementation a venir");
-
-  BSP_LCD_SetFont(&Font12);
-  AfficherTexteCentreZone(0, 126, (uint16_t)BSP_LCD_GetXSize(), "Le menu est pret pour ce mode");
-
-  BSP_LCD_SetTextColor(COULEUR_BOUTON_RETOUR);
-  BSP_LCD_FillRect(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR);
-
-  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-  BSP_LCD_DrawRect(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR);
-
-  BSP_LCD_SetFont(&Font12);
-  BSP_LCD_SetTextColor(COULEUR_TEXTE_RETOUR);
-  BSP_LCD_SetBackColor(COULEUR_BOUTON_RETOUR);
-  AfficherTexteCentreZone(BOUTON_RETOUR_X, (uint16_t)(BOUTON_RETOUR_Y + 10U), BOUTON_RETOUR_LARGEUR, "Retour menu");
-
-  BSP_LCD_SelectLayer(1);
-  BSP_LCD_Clear(0x00000000);
-}
-
-static void AfficherEcranTestUart(void)
-{
-  ecranCourant = ECRAN_TEST_UART;
-  TestUart_Afficher();
-}
-
-static void AfficherSousMenuDames(void)
-{
-  ecranCourant = ECRAN_ACCUEIL;
-  Menu_AfficherSousMenuDames();
 }
 
 static void AfficherEcranAccueil(void)
@@ -147,33 +99,6 @@ static void AfficherEcranAccueil(void)
   ecranCourant = ECRAN_ACCUEIL;
   Menu_Reinitialiser();
   Menu_Afficher();
-}
-
-static void AfficherTexteCentreZone(uint16_t x, uint16_t y, uint16_t largeur, const char *texte)
-{
-  sFONT *policeCourante;
-  uint16_t largeurTexte;
-  uint16_t xTexte;
-
-  policeCourante = BSP_LCD_GetFont();
-  largeurTexte = (uint16_t)(strlen(texte) * policeCourante->Width);
-
-  if (largeurTexte >= largeur)
-  {
-    xTexte = x;
-  }
-  else
-  {
-    xTexte = (uint16_t)(x + ((largeur - largeurTexte) / 2U));
-  }
-
-  BSP_LCD_DisplayStringAt(xTexte, y, (uint8_t *)texte, LEFT_MODE);
-}
-
-static uint8_t CoordonneesSontDansZone(uint16_t x, uint16_t y, uint16_t zoneX, uint16_t zoneY, uint16_t largeur, uint16_t hauteur)
-{
-  return (uint8_t)((x >= zoneX) && (x < (zoneX + largeur)) &&
-                   (y >= zoneY) && (y < (zoneY + hauteur)));
 }
 
 /* USER CODE END 0 */
@@ -187,7 +112,9 @@ int main(void)
 
 /* USER CODE BEGIN 1 */
   CoupDames coupLocal;
+  CoupDames coupRecu;
   char messageCoup[TAILLE_MESSAGE_COUP_MAX];
+  char messageRecu[TAILLE_MESSAGE_COUP_MAX];
   TS_StateTypeDef etatTactile = {0};
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
@@ -259,15 +186,11 @@ int main(void)
 
         if (actionMenu == MENU_ACTION_LANCER_DAMES_LOCAL)
         {
-          AfficherEcranDames();
+          AfficherEcranDames(MODE_PARTIE_DAMES_LOCAL);
         }
-        else if (actionMenu == MENU_ACTION_LANCER_DAMES_BLUETOOTH)
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_UART)
         {
-          AfficherEcranBluetooth();
-        }
-        else if (actionMenu == MENU_ACTION_LANCER_TEST_UART)
-        {
-          AfficherEcranTestUart();
+          AfficherEcranDames(MODE_PARTIE_DAMES_UART);
         }
       }
       else if (ecranCourant == ECRAN_DAMES)
@@ -277,37 +200,30 @@ int main(void)
           AfficherEcranAccueil();
         }
       }
-      else if (ecranCourant == ECRAN_BLUETOOTH)
-      {
-        if (CoordonneesSontDansZone(etatTactile.touchX[0], etatTactile.touchY[0],
-                                    BOUTON_RETOUR_X, BOUTON_RETOUR_Y,
-                                    BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR) != 0U)
-        {
-          AfficherSousMenuDames();
-        }
-      }
-      else if (ecranCourant == ECRAN_TEST_UART)
-      {
-        if (TestUart_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == TEST_UART_ACTION_QUITTER)
-        {
-          AfficherEcranAccueil();
-        }
-      }
     }
 
-    if (ecranCourant == ECRAN_TEST_UART)
+    if (ecranCourant == ECRAN_DAMES)
     {
-      TestUart_MettreAJour();
-    }
-    else if (ecranCourant == ECRAN_DAMES)
-    {
-      if ((Dames_CoupLocalEstPret() != 0U) &&
-          (Dames_RecupererDernierCoupLocal(&coupLocal) != 0U) &&
-          (Dames_ConvertirCoupEnTexte(&coupLocal, messageCoup, sizeof(messageCoup)) != 0U))
+      if (modePartieDamesCourant == MODE_PARTIE_DAMES_UART)
       {
-        if (TestUart_EnvoyerMessage(messageCoup) != 0U)
+        if ((Dames_CoupLocalEstPret() != 0U) &&
+            (Dames_RecupererDernierCoupLocal(&coupLocal) != 0U) &&
+            (Dames_ConvertirCoupEnTexte(&coupLocal, messageCoup, sizeof(messageCoup)) != 0U))
         {
-          Dames_AcquitterDernierCoupLocal();
+          if (TestUart_EnvoyerMessage(messageCoup) != 0U)
+          {
+            Dames_AcquitterDernierCoupLocal();
+          }
+        }
+
+        if ((TestUart_MessageRecuEstPret() != 0U) &&
+            (TestUart_RecupererDernierMessageRecu(messageRecu, sizeof(messageRecu)) != 0U))
+        {
+          if ((Dames_ConvertirTexteEnCoup(messageRecu, &coupRecu) != 0U) &&
+              (Dames_AppliquerCoupRecu(&coupRecu) != 0U))
+          {
+            TestUart_AcquitterDernierMessageRecu();
+          }
         }
       }
     }
