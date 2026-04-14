@@ -17,9 +17,10 @@
 
 #define CARTE_MODE_X           100U
 #define CARTE_MODE_LARGEUR     280U
-#define CARTE_MODE_HAUTEUR     54U
-#define CARTE_MODE_LOCAL_Y     78U
-#define CARTE_MODE_UART_Y      144U
+#define CARTE_MODE_HAUTEUR     44U
+#define CARTE_MODE_LOCAL_Y     64U
+#define CARTE_MODE_UART_Y      118U
+#define CARTE_MODE_BLUETOOTH_Y 172U
 #define BOUTON_RETOUR_X        160U
 #define BOUTON_RETOUR_Y        214U
 #define BOUTON_RETOUR_LARGEUR  160U
@@ -29,7 +30,8 @@ typedef enum
 {
   MENU_ECRAN_ACCUEIL = 0,
   MENU_ECRAN_DAMES_MODE,
-  MENU_ECRAN_DAMES_UART_JOUEUR
+  MENU_ECRAN_DAMES_UART_JOUEUR,
+  MENU_ECRAN_DAMES_BLUETOOTH_JOUEUR
 } TypeEcranMenu;
 
 static TypeEcranMenu ecranMenuCourant = MENU_ECRAN_ACCUEIL;
@@ -43,6 +45,7 @@ static void DessinerCarte(uint16_t x, uint16_t y, uint16_t largeur, uint16_t hau
 static void AfficherAccueilPrincipal(void);
 static void AfficherSousMenuDames(void);
 static void AfficherSousMenuDamesUart(void);
+static void AfficherSousMenuDamesBluetooth(void);
 
 void Menu_Reinitialiser(void)
 {
@@ -58,6 +61,10 @@ void Menu_Afficher(void)
   else if (ecranMenuCourant == MENU_ECRAN_DAMES_UART_JOUEUR)
   {
     AfficherSousMenuDamesUart();
+  }
+  else if (ecranMenuCourant == MENU_ECRAN_DAMES_BLUETOOTH_JOUEUR)
+  {
+    AfficherSousMenuDamesBluetooth();
   }
   else
   {
@@ -92,6 +99,13 @@ MenuAction Menu_GererTouch(uint16_t x, uint16_t y)
       Menu_Afficher();
       return MENU_ACTION_AUCUNE;
     }
+
+    if (CoordonneesSontDansZone(x, y, CARTE_MODE_X, CARTE_MODE_BLUETOOTH_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR) != 0U)
+    {
+      ecranMenuCourant = MENU_ECRAN_DAMES_BLUETOOTH_JOUEUR;
+      Menu_Afficher();
+      return MENU_ACTION_AUCUNE;
+    }
   }
   else if (ecranMenuCourant == MENU_ECRAN_DAMES_UART_JOUEUR)
   {
@@ -105,10 +119,23 @@ MenuAction Menu_GererTouch(uint16_t x, uint16_t y)
       return MENU_ACTION_LANCER_DAMES_UART_NOIR;
     }
   }
+  else if (ecranMenuCourant == MENU_ECRAN_DAMES_BLUETOOTH_JOUEUR)
+  {
+    if (CoordonneesSontDansZone(x, y, CARTE_MODE_X, CARTE_MODE_LOCAL_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR) != 0U)
+    {
+      return MENU_ACTION_LANCER_DAMES_BLUETOOTH_BLANC;
+    }
+
+    if (CoordonneesSontDansZone(x, y, CARTE_MODE_X, CARTE_MODE_UART_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR) != 0U)
+    {
+      return MENU_ACTION_LANCER_DAMES_BLUETOOTH_NOIR;
+    }
+  }
 
   if (CoordonneesSontDansZone(x, y, BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR) != 0U)
   {
-    if (ecranMenuCourant == MENU_ECRAN_DAMES_UART_JOUEUR)
+    if ((ecranMenuCourant == MENU_ECRAN_DAMES_UART_JOUEUR) ||
+        (ecranMenuCourant == MENU_ECRAN_DAMES_BLUETOOTH_JOUEUR))
     {
       ecranMenuCourant = MENU_ECRAN_DAMES_MODE;
     }
@@ -150,9 +177,11 @@ static void AfficherSousMenuDames(void)
   AfficherTexteCentreZone(0, 20, (uint16_t)BSP_LCD_GetXSize(), "Jeu de dames");
 
   DessinerCarte(CARTE_MODE_X, CARTE_MODE_LOCAL_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
-                COULEUR_CARTE_JEU, "1 carte", "Deux joueurs sur le meme ecran");
+                COULEUR_CARTE_JEU, "Jeu seul", "Deux joueurs sur le meme ecran");
   DessinerCarte(CARTE_MODE_X, CARTE_MODE_UART_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
-                COULEUR_CARTE_JEU, "2 cartes UART", "Une carte par joueur");
+                COULEUR_CARTE_JEU, "Jeu en liaison UART", "Une carte par joueur");
+  DessinerCarte(CARTE_MODE_X, CARTE_MODE_BLUETOOTH_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
+                COULEUR_CARTE_JEU, "Jeu en Bluetooth", "Une carte par joueur");
 
   DessinerCarte(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR,
                 COULEUR_BOUTON_RETOUR, "Retour", NULL);
@@ -170,6 +199,28 @@ static void AfficherSousMenuDamesUart(void)
   BSP_LCD_SetTextColor(COULEUR_TITRE_ACCUEIL);
   BSP_LCD_SetBackColor(COULEUR_ACCUEIL_FOND);
   AfficherTexteCentreZone(0, 20, (uint16_t)BSP_LCD_GetXSize(), "2 cartes UART");
+
+  DessinerCarte(CARTE_MODE_X, CARTE_MODE_LOCAL_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
+                COULEUR_CARTE_JEU, "Joueur blanc", "Cette carte joue les blancs");
+  DessinerCarte(CARTE_MODE_X, CARTE_MODE_UART_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
+                COULEUR_CARTE_JEU, "Joueur noir", "Cette carte joue les noirs");
+
+  DessinerCarte(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR,
+                COULEUR_BOUTON_RETOUR, "Retour", NULL);
+
+  BSP_LCD_SelectLayer(1);
+  BSP_LCD_Clear(0x00000000);
+}
+
+static void AfficherSousMenuDamesBluetooth(void)
+{
+  BSP_LCD_SelectLayer(0);
+  BSP_LCD_Clear(COULEUR_ACCUEIL_FOND);
+
+  BSP_LCD_SetFont(&Font24);
+  BSP_LCD_SetTextColor(COULEUR_TITRE_ACCUEIL);
+  BSP_LCD_SetBackColor(COULEUR_ACCUEIL_FOND);
+  AfficherTexteCentreZone(0, 20, (uint16_t)BSP_LCD_GetXSize(), "Jeu en Bluetooth");
 
   DessinerCarte(CARTE_MODE_X, CARTE_MODE_LOCAL_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
                 COULEUR_CARTE_JEU, "Joueur blanc", "Cette carte joue les blancs");

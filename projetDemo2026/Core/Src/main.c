@@ -192,6 +192,14 @@ int main(void)
         {
           AfficherEcranDames(DAMES_MODE_UART, DAMES_JOUEUR_LOCAL_NOIR);
         }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_BLUETOOTH_BLANC)
+        {
+          AfficherEcranDames(DAMES_MODE_BLUETOOTH, DAMES_JOUEUR_LOCAL_BLANC);
+        }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_BLUETOOTH_NOIR)
+        {
+          AfficherEcranDames(DAMES_MODE_BLUETOOTH, DAMES_JOUEUR_LOCAL_NOIR);
+        }
       }
       else if (ecranCourant == ECRAN_DAMES)
       {

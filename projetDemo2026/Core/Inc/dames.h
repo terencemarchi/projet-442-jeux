@@ -22,7 +22,8 @@ typedef struct
 typedef enum
 {
   DAMES_MODE_LOCAL = 0,
-  DAMES_MODE_UART
+  DAMES_MODE_UART,
+  DAMES_MODE_BLUETOOTH
 } DamesModePartie;
 
 typedef enum
