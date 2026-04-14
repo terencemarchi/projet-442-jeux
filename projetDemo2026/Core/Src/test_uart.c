@@ -145,7 +145,7 @@ static void TraiterOctetRecu(uint8_t octetRecu)
   etatTestUart.indexReception++;
 }
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void TestUart_TraiterReceptionInterruption(UART_HandleTypeDef *huart)
 {
   if (huart->Instance != UART7)
   {

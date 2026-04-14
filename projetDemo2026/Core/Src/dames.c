@@ -63,6 +63,7 @@ typedef struct
   PositionCase caseSelectionnee;
   CoupDames coupEnCours;
   CoupDames dernierCoupLocal;
+  char statutLiaison[64];
 } EtatPartie;
 
 static EtatPartie etatPartie;
@@ -333,6 +334,21 @@ uint8_t Dames_AppliquerCoupRecu(const CoupDames *coup)
   return 1U;
 }
 
+void Dames_DefinirStatutLiaison(const char *texte)
+{
+  if (texte == NULL)
+  {
+    etatPartie.statutLiaison[0] = '\0';
+  }
+  else
+  {
+    strncpy(etatPartie.statutLiaison, texte, sizeof(etatPartie.statutLiaison) - 1U);
+    etatPartie.statutLiaison[sizeof(etatPartie.statutLiaison) - 1U] = '\0';
+  }
+
+  DessinerElementsJeu(&etatPartie);
+}
+
 void Dames_AfficherNouvellePartie(DamesModePartie modePartie, DamesJoueurLocal joueurLocal)
 {
   InitialiserPartie(&etatPartie);
@@ -556,6 +572,7 @@ static void InitialiserPartie(EtatPartie *etat)
   etat->selectionActive = 0U;
   etat->priseMultipleActive = 0U;
   etat->partieTerminee = 0U;
+  etat->statutLiaison[0] = '\0';
   etat->caseSelectionnee.ligne = 0U;
   etat->caseSelectionnee.colonne = 0U;
 }
@@ -1391,6 +1408,7 @@ static void DessinerInfosJeu(const EtatPartie *etat)
   char texte[40];
   char texteJoueurLocal[40];
   char texteEtat[40];
+  char texteLiaison[64];
 
   BSP_LCD_SetFont(&Font12);
   BSP_LCD_SetTextColor(COULEUR_INFOS_JEU);
@@ -1416,6 +1434,12 @@ static void DessinerInfosJeu(const EtatPartie *etat)
     snprintf(texteEtat, sizeof(texteEtat), "Etat : %s",
              JoueurLocalPeutJouer(etat) != 0U ? "a vous" : "attente");
     BSP_LCD_DisplayStringAt(280, 60, (uint8_t *)texteEtat, LEFT_MODE);
+
+    if (etat->statutLiaison[0] != '\0')
+    {
+      snprintf(texteLiaison, sizeof(texteLiaison), "%s", etat->statutLiaison);
+      BSP_LCD_DisplayStringAt(280, 78, (uint8_t *)texteLiaison, LEFT_MODE);
+    }
   }
 }
 

@@ -47,6 +47,7 @@ uint8_t Dames_CoupLocalEstPret(void);
 uint8_t Dames_RecupererDernierCoupLocal(CoupDames *coup);
 void Dames_AcquitterDernierCoupLocal(void);
 uint8_t Dames_AppliquerCoupRecu(const CoupDames *coup);
+void Dames_DefinirStatutLiaison(const char *texte);
 
 void Dames_AfficherNouvellePartie(DamesModePartie modePartie, DamesJoueurLocal joueurLocal);
 DamesAction Dames_GererTouch(uint16_t x, uint16_t y);

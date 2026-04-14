@@ -235,6 +235,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     GPIO_InitStruct.Alternate = GPIO_AF8_USART6;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
+    HAL_NVIC_SetPriority(USART6_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(USART6_IRQn);
+
   /* USER CODE BEGIN USART6_MspInit 1 */
 
   /* USER CODE END USART6_MspInit 1 */
@@ -297,6 +300,8 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
     PC6     ------> USART6_TX
     */
     HAL_GPIO_DeInit(GPIOC, ARDUINO_RX_D0_Pin|ARDUINO_TX_D1_Pin);
+
+    HAL_NVIC_DisableIRQ(USART6_IRQn);
 
   /* USER CODE BEGIN USART6_MspDeInit 1 */
 

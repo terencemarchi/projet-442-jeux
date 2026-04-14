@@ -35,6 +35,7 @@
 #include "menu.h"
 #include "dames.h"
 #include "test_uart.h"
+#include "liaison_bluetooth.h"
 #include "stm32746g_discovery_lcd.h"
 #include "stm32746g_discovery_ts.h"
 /* USER CODE END Includes */
@@ -64,6 +65,7 @@ typedef enum
 static TypeEcran ecranCourant = ECRAN_ACCUEIL;
 static DamesModePartie modePartieDamesCourant = DAMES_MODE_LOCAL;
 static DamesJoueurLocal joueurLocalDamesCourant = DAMES_JOUEUR_LOCAL_BLANC;
+static uint8_t messageBluetoothTestEnvoye = 0U;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,14 +82,31 @@ static void AfficherEcranDames(DamesModePartie modePartie, DamesJoueurLocal joue
 {
   modePartieDamesCourant = modePartie;
   joueurLocalDamesCourant = joueurLocal;
+  messageBluetoothTestEnvoye = 0U;
   ecranCourant = ECRAN_DAMES;
 
   if (modePartieDamesCourant == DAMES_MODE_UART)
   {
     TestUart_Initialiser();
   }
+  else if (modePartieDamesCourant == DAMES_MODE_BLUETOOTH)
+  {
+    LiaisonBluetooth_Initialiser();
+  }
 
   Dames_AfficherNouvellePartie(modePartieDamesCourant, joueurLocalDamesCourant);
+
+  if (modePartieDamesCourant == DAMES_MODE_BLUETOOTH)
+  {
+    if (joueurLocalDamesCourant == DAMES_JOUEUR_LOCAL_BLANC)
+    {
+      Dames_DefinirStatutLiaison("Bluetooth : pret a envoyer");
+    }
+    else
+    {
+      Dames_DefinirStatutLiaison("Bluetooth : attente message");
+    }
+  }
 }
 
 static void AfficherEcranAccueil(void)
@@ -111,6 +130,7 @@ int main(void)
   CoupDames coupRecu;
   char messageCoup[TAILLE_MESSAGE_COUP_MAX];
   char messageRecu[TAILLE_MESSAGE_COUP_MAX];
+  char messageBluetooth[TAILLE_MESSAGE_COUP_MAX];
   TS_StateTypeDef etatTactile = {0};
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
@@ -234,6 +254,25 @@ int main(void)
           }
         }
       }
+      else if (modePartieDamesCourant == DAMES_MODE_BLUETOOTH)
+      {
+        if ((joueurLocalDamesCourant == DAMES_JOUEUR_LOCAL_BLANC) &&
+            (messageBluetoothTestEnvoye == 0U))
+        {
+          if (LiaisonBluetooth_EnvoyerMessage("BONJOUR_BLUETOOTH\n") != 0U)
+          {
+            messageBluetoothTestEnvoye = 1U;
+            Dames_DefinirStatutLiaison("Bluetooth : message envoye");
+          }
+        }
+
+        if ((LiaisonBluetooth_MessageRecuEstPret() != 0U) &&
+            (LiaisonBluetooth_RecupererDernierMessageRecu(messageBluetooth, sizeof(messageBluetooth)) != 0U))
+        {
+          Dames_DefinirStatutLiaison(messageBluetooth);
+          LiaisonBluetooth_AcquitterDernierMessageRecu();
+        }
+      }
     }
 
     tactileActifPrecedent = (etatTactile.touchDetected != 0U) ? 1U : 0U;
@@ -303,6 +342,11 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  TestUart_TraiterReceptionInterruption(huart);
+  LiaisonBluetooth_TraiterReceptionInterruption(huart);
+}
 
 /* USER CODE END 4 */
 
