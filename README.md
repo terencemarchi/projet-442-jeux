@@ -25,6 +25,10 @@ Le jeu se joue directement sur l'ecran tactile de la carte :
 - puis touche une case valide pour jouer son coup
 - les joueurs jouent chacun leur tour sur la meme carte
 
-## Suite du projet
+## Mode deux joueurs
 
-Une evolution vers un mode de jeu sur deux cartes est prevue plus tard.
+Si on flash le jeu sur deux cartes disctinctes et qu'on utilise 3 cables pour faire une laison UART (TX <-> RX, RX <-> TX, et GND <-> GND) on peut jouer à deux sur deux cartes disctinctes.
+
+## Suite...
+
+Faire un réseau de neurone pour jouer "contre" la carte
