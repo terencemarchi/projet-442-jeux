@@ -9,6 +9,7 @@ Release/
 *.map
 *.list
 .vscode/
+.project
 # Debug launch files
 *.launch
 # =========================
