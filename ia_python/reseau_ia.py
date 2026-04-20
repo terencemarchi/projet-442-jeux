@@ -25,6 +25,7 @@ sortie  -> float(activations_sortie[0])
 """
 
 from __future__ import annotations
+from pathlib import Path
 import numpy as np
 from regles_ia import NB_ENTREES_IA
 
@@ -59,7 +60,7 @@ class ReseauIA:
         self.reinitialiser_poids()
 
     def reinitialiser_poids(self) -> None:
-        """Initialise les poids avec une loi uniforme de type Xavier simple."""
+        """Initialise les poids avec une loi uniforme."""
         limite_entree_cachee = np.sqrt(6.0 / (self.nb_entrees + self.nb_neurones_caches))
         limite_cachee_sortie = np.sqrt(6.0 / (self.nb_neurones_caches + self.nb_sorties))
 
@@ -112,9 +113,8 @@ class ReseauIA:
         cible: float,
         taux_apprentissage: float = 0.01,
     ) -> dict[str, float]:
-        """Effectue une etape d'apprentissage par retropropagation.
-
-        Retourne quelques informations utiles pour suivre l'entrainement.
+        """
+        Effectue une etape d'apprentissage par retropropagation.
         """
         (
             vecteur_entree,
@@ -152,6 +152,36 @@ class ReseauIA:
             "erreur": float(erreur_sortie[0]),
             "perte": perte,
         }
+
+    def sauvegarder_csv(self, dossier: str | Path) -> None:
+        """Sauvegarde les poids et biais dans des fichiers CSV lisibles."""
+        dossier_sortie = Path(dossier)
+        dossier_sortie.mkdir(parents=True, exist_ok=True)
+
+        np.savetxt(
+            dossier_sortie / "W1_poids_entree_cachee.csv",
+            self.poids_entree_cachee,
+            delimiter=",",
+            fmt="%.7f",
+        )
+        np.savetxt(
+            dossier_sortie / "b1_biais_cachee.csv",
+            self.biais_cachee.reshape(1, -1),
+            delimiter=",",
+            fmt="%.7f",
+        )
+        np.savetxt(
+            dossier_sortie / "W2_poids_cachee_sortie.csv",
+            self.poids_cachee_sortie,
+            delimiter=",",
+            fmt="%.7f",
+        )
+        np.savetxt(
+            dossier_sortie / "b2_biais_sortie.csv",
+            self.biais_sortie.reshape(1, -1),
+            delimiter=",",
+            fmt="%.7f",
+        )
 
     def _valider_et_convertir_entrees(self, entrees: np.ndarray) -> np.ndarray:
         vecteur_entree = np.asarray(entrees, dtype=np.float32).reshape(-1)
