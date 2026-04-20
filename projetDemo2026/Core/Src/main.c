@@ -34,6 +34,7 @@
 /* USER CODE BEGIN Includes */
 #include "menu.h"
 #include "dames.h"
+#include "dames_ia.h"
 #include "test_uart.h"
 #include "stm32746g_discovery_lcd.h"
 #include "stm32746g_discovery_ts.h"
@@ -44,7 +45,8 @@
 typedef enum
 {
   ECRAN_ACCUEIL = 0,
-  ECRAN_DAMES
+  ECRAN_DAMES,
+  ECRAN_DAMES_IA
 } TypeEcran;
 
 /* USER CODE END PTD */
@@ -64,12 +66,14 @@ typedef enum
 static TypeEcran ecranCourant = ECRAN_ACCUEIL;
 static DamesModePartie modePartieDamesCourant = DAMES_MODE_LOCAL;
 static DamesJoueurLocal joueurLocalDamesCourant = DAMES_JOUEUR_LOCAL_BLANC;
+static DamesIaMode modeDamesIaCourant = DAMES_IA_MODE_IA_VS_IA;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void AfficherEcranDames(DamesModePartie modePartie, DamesJoueurLocal joueurLocal);
+static void AfficherEcranDamesIa(DamesIaMode mode);
 static void AfficherEcranAccueil(void);
 
 /* USER CODE END PFP */
@@ -88,6 +92,13 @@ static void AfficherEcranDames(DamesModePartie modePartie, DamesJoueurLocal joue
   }
 
   Dames_AfficherNouvellePartie(modePartieDamesCourant, joueurLocalDamesCourant);
+}
+
+static void AfficherEcranDamesIa(DamesIaMode mode)
+{
+  modeDamesIaCourant = mode;
+  ecranCourant = ECRAN_DAMES_IA;
+  DamesIa_AfficherNouvellePartie(modeDamesIaCourant);
 }
 
 static void AfficherEcranAccueil(void)
@@ -192,10 +203,25 @@ int main(void)
         {
           AfficherEcranDames(DAMES_MODE_UART, DAMES_JOUEUR_LOCAL_NOIR);
         }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_IA_VS_IA)
+        {
+          AfficherEcranDamesIa(DAMES_IA_MODE_IA_VS_IA);
+        }
+        else if (actionMenu == MENU_ACTION_LANCER_DAMES_JOUEUR_VS_IA)
+        {
+          AfficherEcranDamesIa(DAMES_IA_MODE_JOUEUR_VS_IA);
+        }
       }
       else if (ecranCourant == ECRAN_DAMES)
       {
         if (Dames_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == DAMES_ACTION_QUITTER)
+        {
+          AfficherEcranAccueil();
+        }
+      }
+      else if (ecranCourant == ECRAN_DAMES_IA)
+      {
+        if (DamesIa_GererTouch(etatTactile.touchX[0], etatTactile.touchY[0]) == DAMES_IA_ACTION_QUITTER)
         {
           AfficherEcranAccueil();
         }
