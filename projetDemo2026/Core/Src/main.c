@@ -253,6 +253,10 @@ int main(void)
         }
       }
     }
+    else if (ecranCourant == ECRAN_DAMES_IA)
+    {
+      DamesIa_MettreAJour(HAL_GetTick());
+    }
 
     tactileActifPrecedent = (etatTactile.touchDetected != 0U) ? 1U : 0U;
 

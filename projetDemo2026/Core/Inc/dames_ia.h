@@ -17,5 +17,6 @@ typedef enum
 
 void DamesIa_AfficherNouvellePartie(DamesIaMode mode);
 DamesIaAction DamesIa_GererTouch(uint16_t x, uint16_t y);
+void DamesIa_MettreAJour(uint32_t tempsCourantMs);
 
 #endif /* DAMES_IA_H */
