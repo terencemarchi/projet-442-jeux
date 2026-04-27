@@ -201,9 +201,9 @@ static void AfficherSousMenuDamesIa(void)
   AfficherTexteCentreZone(0, 20, (uint16_t)BSP_LCD_GetXSize(), "Jeu IA");
 
   DessinerCarte(CARTE_MODE_X, CARTE_MODE_LOCAL_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
-                COULEUR_CARTE_JEU, "IA vs IA", "Observation du plateau IA");
+                COULEUR_CARTE_JEU, "IA vs IA", NULL);
   DessinerCarte(CARTE_MODE_X, CARTE_MODE_UART_Y, CARTE_MODE_LARGEUR, CARTE_MODE_HAUTEUR,
-                COULEUR_CARTE_JEU, "Joueur contre IA", "Branchement a venir");
+                COULEUR_CARTE_JEU, "Joueur contre IA", NULL);
 
   DessinerCarte(BOUTON_RETOUR_X, BOUTON_RETOUR_Y, BOUTON_RETOUR_LARGEUR, BOUTON_RETOUR_HAUTEUR,
                 COULEUR_BOUTON_RETOUR, "Retour", NULL);

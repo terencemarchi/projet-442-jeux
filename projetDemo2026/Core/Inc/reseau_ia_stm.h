@@ -3,7 +3,12 @@
 
 #include "regles_ia_stm.h"
 
-float ReseauIaStm_EvaluerEntrees(const float entrees[REGLES_IA_NB_ENTREES]);
-float ReseauIaStm_EvaluerEtat(const EtatJeuIaStm *etat);
+void ReseauIaStm_CalculerActivationsCachees(const float entrees[REGLES_IA_NB_ENTREES],
+                                            float couche1[64],
+                                            float couche2[64]);
+float ReseauIaStm_EvaluerActionDepuisActivations(const float couche2[64], uint16_t indexAction);
+uint8_t ReseauIaStm_ChoisirMeilleurCoup(const EtatJeuIaStm *etat,
+                                        CoupIaStm *meilleurCoup,
+                                        float *meilleurScore);
 
 #endif /* RESEAU_IA_STM_H */

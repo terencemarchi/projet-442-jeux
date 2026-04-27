@@ -7,11 +7,13 @@
 #define REGLES_IA_NB_CASES_JOUABLES   50U
 #define REGLES_IA_NB_LIGNES_PIONS     4U
 #define REGLES_IA_NB_ENTREES          51U
-#define REGLES_IA_NB_COUPS_MAX        64U
+#define REGLES_IA_NB_COUPS_MAX        128U
 
 #define REGLES_IA_PION_NOIR           (-1)
 #define REGLES_IA_CASE_VIDE           0
 #define REGLES_IA_PION_BLANC          1
+#define REGLES_IA_DAME_BLANCHE        2
+#define REGLES_IA_DAME_NOIRE          (-2)
 
 #define REGLES_IA_JOUEUR_NOIR         (-1)
 #define REGLES_IA_JOUEUR_BLANC        1

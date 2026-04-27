@@ -122,7 +122,7 @@ int main(void)
   CoupDames coupRecu;
   char messageCoup[TAILLE_MESSAGE_COUP_MAX];
   char messageRecu[TAILLE_MESSAGE_COUP_MAX];
-  TS_StateTypeDef etatTactile = {0};
+   TS_StateTypeDef etatTactile = {0};
   uint8_t tactileActifPrecedent = 0U;
   /* USER CODE END 1 */
 
