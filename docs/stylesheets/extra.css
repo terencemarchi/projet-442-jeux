@@ -1,0 +1,42 @@
+body {
+  --accent-main: #8b5a2b;
+  --accent-soft: #f1e3c6;
+  --accent-deep: #4f2f1a;
+}
+
+.wy-side-nav-search,
+.wy-nav-top {
+  background: linear-gradient(135deg, #4f2f1a 0%, #8b5a2b 100%);
+}
+
+.wy-menu-vertical a:hover,
+.wy-menu-vertical a:focus,
+.wy-menu-vertical li.current > a {
+  color: var(--accent-deep);
+}
+
+.wy-nav-content {
+  max-width: 980px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--accent-deep);
+}
+
+table td,
+table th {
+  vertical-align: top;
+}
+
+code,
+.rst-content tt,
+.rst-content code {
+  color: #7a2f1d;
+}
+
+.rst-content blockquote {
+  border-left: 4px solid var(--accent-main);
+}

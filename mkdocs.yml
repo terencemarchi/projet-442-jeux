@@ -1,0 +1,21 @@
+site_name: Jeu de dames sur STM32F746
+site_description: Documentation du mini-projet de jeu de dames embarque sur carte STM32F746
+docs_dir: docs
+theme:
+  name: readthedocs
+nav:
+  - Accueil: index.md
+  - Fonctionnement du jeu: fonctionnement.md
+  - Architecture: architecture.md
+  - Communication UART: uart.md
+  - Intelligence artificielle: ia.md
+  - Limites et perspectives: perspectives.md
+markdown_extensions:
+  - admonition
+  - attr_list
+  - fenced_code
+  - tables
+  - toc:
+      permalink: true
+extra_css:
+  - stylesheets/extra.css
