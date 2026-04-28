@@ -79,9 +79,7 @@ L'objectif est de :
 Cette intégration reste une première étape.
 Elle se heurte à plusieurs contraintes :
 
-- ressources mémoire limitées sur microcontrôleur
-- coût de calcul d'une inférence embarquée
-- écart entre l'environnement Python et l'exécution temps réel sur la carte
-- qualité encore perfectible du niveau de jeu obtenu
+- le modèle est entrainé avec des régles extrement simple, pas de de prise obligatoire ni multiple
+- qualité encore perfectible du niveau de jeu obtenu, la difficulté n'est pas réelle
 
-Malgré cela, cette architecture constitue une base intéressante pour faire dialoguer apprentissage en Python et exécution embarquée sur `STM32`.
+
