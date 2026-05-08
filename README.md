@@ -142,13 +142,10 @@ L'objectif est de permettre à la carte de calculer un coup automatiquement à p
 Plusieurs difficultés ont été rencontrées au cours du projet.
 
 Tout d'abord, une piste de travail autour du `Bluetooth` a été explorée, mais elle n'a pas été retenue dans la version finale.  
-Dans le contexte matériel du projet, cette solution ne s'est pas révélée suffisamment exploitable sans ajout de matériel externe.
 
 Par ailleurs, l'intégration d'une intelligence artificielle sur microcontrôleur impose plusieurs contraintes :
 
-- ressources mémoire limitées
-- puissance de calcul réduite
-- nécessité d'adapter ou simplifier le modèle
+- nécessité d'adapter et simplifier le modèle
 - complexité de l'intégration entre l'entraînement Python et l'exécution embarquée
 
 Enfin, certaines parties du projet peuvent encore être améliorées, notamment en termes de robustesse, d'ergonomie et de niveau de jeu de l'IA.
@@ -170,13 +167,9 @@ Plusieurs pistes d'amélioration peuvent être envisagées pour la suite du proj
 - améliorer l'intelligence artificielle pour obtenir un niveau de jeu plus élevé
 - optimiser l'inférence embarquée sur la carte
 - enrichir l'interface graphique et les menus
-- renforcer la robustesse du mode deux cartes
 - ajouter de nouveaux modes de jeu
-- poursuivre l'exploration de solutions de communication sans fil adaptées
 
 ## Références
 
 - `STM32CubeIDE`
 - bibliothèques `STM32 HAL`
-- scripts Python développés dans le projet
-- ressources utilisées pour l'entraînement et l'export du modèle
